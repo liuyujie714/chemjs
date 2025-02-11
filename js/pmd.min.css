@@ -68,8 +68,6 @@ ul#markdown-toc:before {
 }
 
 .wrap {
-    max-width: 800px;
-    max-width: 70%;
     margin: 0 auto;
     zoom: 1;
     text-align: left;
