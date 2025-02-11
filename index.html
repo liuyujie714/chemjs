@@ -59,7 +59,7 @@
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 0, 1 ]);
                         ChemDoodle.lib.mat4.multiply(this.rotationMatrix, matrix)
                     };
-                    ChemDoodle.io.file.content('./mol/ch4.xyz', function(fileContent) {
+                    ChemDoodle.io.file.content('https://raw.githubusercontent.com/liuyujie714/chemjs/main/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
                         Mol.loadMolecule(mol)
                     });
