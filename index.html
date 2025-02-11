@@ -2,8 +2,8 @@
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-        <link rel="stylesheet" href="https://github.com/liuyujie714/chemjs/js/pmd.min.css">
-        <script type="text/javascript" src="https://github.com/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <title>分子可视化</title>
     </head>
 
@@ -59,7 +59,7 @@
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 0, 1 ]);
                         ChemDoodle.lib.mat4.multiply(this.rotationMatrix, matrix)
                     };
-                    ChemDoodle.io.file.content('https://raw.githubusercontent.com/liuyujie714/chemjs/main/mol/ch4.xyz', function(fileContent) {
+                    ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
                         Mol.loadMolecule(mol)
                     });
