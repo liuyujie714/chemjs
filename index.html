@@ -6,30 +6,21 @@
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <title>分子可视化</title>
     </head>
-
-    <script>
-        // 页面加载完毕时执行
-        window.onload = function() {
-            setTimeout(function() {
-                document.getElementById('getcoords').click(); 
-            }, 100); 
-        };
-    </script>
     
     <div class="wrap">
     <table>
         <tr>
             <td>
-                <input type="button" id="getcoords" value="获取坐标" onClick="getcoords()" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
+                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .xyz" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
             <td>
-                <input type="button" value="显示分子" onClick="setcoords()" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
+                <input type="button" readonly value="分子模型" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
         </tr>
 
         <tr>
             <td>
-                <textarea id="textarea" style="width: 400px; height: 400px; resize: none;"></textarea>
+                <textarea id="textarea" style="width: 400px; height: 400px; resize: none;" wrap="off"></textarea>
             </td>
 
             <td>
@@ -62,10 +53,12 @@
                     ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
                         Mol.loadMolecule(mol)
+                        $("textarea").value = fileContent
                     });
-                    Mol.startAnimation() // 开始动画
-        
+                    Mol.startAnimation(); // 开始动画
+
                     var $ = function(id) { return document.getElementById(id); }
+        
                     function setview(id)
                     {   
                         switch(id)
@@ -86,7 +79,7 @@
                                 Mol.specs.set3DRepresentation('Ball and Stick');
                                 break;
                         }
-                        Mol.repaint()
+                        Mol.repaint();
                     }
 
                     function printf()
@@ -97,37 +90,73 @@
                     function getcoords()
                     {
                        // 第一个分子
-                       let atoms = Mol.molecules[0].atoms
-                       let s = atoms.length+"\nMOL\n"
+                       let atoms = Mol.molecules[0].atoms;
+                       let s = atoms.length+"\nMOL\n";
                        atoms.forEach(e => {
-                            s += printf("%5s", e.label)+printf("%12.6f", e.x)+printf("%12.6f", e.y)+printf("%12.6f", e.z)+"\n"
+                            s += printf("%5s", e.label)+printf("%12.6f", e.x)+printf("%12.6f", e.y)+printf("%12.6f", e.z)+"\n";
                        });
-                       $("textarea").value = s
+                       $("textarea").value = s;
                     }
 
                     // remove multi started spaces and add '\n'
                     function ltrim(s)
                     {
-                        return s.split('\n').map(line=>line.trimStart()).join('\n')
+                        return s.split('\n').map(line=>line.trimStart()).join('\n');
                     }
 
                     function setcoords()
                     {
                         try {
-                            let xyz = ChemDoodle.readXYZ(ltrim($("textarea").value))
-                            Mol.loadMolecule(xyz)
+                            let xyz = ChemDoodle.readXYZ(ltrim($("textarea").value));
+                            Mol.loadMolecule(xyz);
                         }
                         catch {
-                            alert("坐标输入格式错误, 必须是XYZ")
-                            return
+                            alert("坐标输入格式错误, 必须是XYZ");
+                            return;
                         }
                     }
 
                     function showlabel()
                     {
                         Mol.specs.atoms_displayLabels_3D=$("label").checked;
-                        Mol.repaint()
+                        Mol.repaint();
                     }
+
+                    function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
+
+                    function loadfile(t) {
+                        let a=t.target.files[0];
+                        if(a) {
+                            let r=new FileReader;
+                            r.onload=function(t) {
+                                let s = extension(a.name);
+                                content=t.target.result;
+                                let obj;
+                                switch(s)
+                                {
+                                    case 'pdb':
+                                        obj = ChemDoodle.readPDB(content);
+                                        alert(obj);
+                                        break;
+                                    case 'xyz':
+                                        obj = ChemDoodle.readXYZ(ltrim(content));
+                                        break;
+                                    case 'mol':
+                                        obj = ChemDoodle.readMOL(content);
+                                        break;
+                                    default:
+                                        alert('Unknown supported file format: ' + s);
+                                        return;
+                                }
+                                Mol.loadMolecule(obj);
+                                $("textarea").value = content;
+                            };
+                            r.readAsText(a);
+                        }
+                        else alert("Failed to load file")
+                    }
+
+                    window.File && window.FileReader && window.FileList && window.Blob ? $("loadfile").addEventListener('change', loadfile, !1): alert("The File APIs are not fully supported by your browser.")
                 </script>
 
                 <div> 
