@@ -4,6 +4,8 @@
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/ChemDoodleWeb-uis.js"></script>
         <title>分子可视化</title>
     </head>
     
@@ -14,18 +16,23 @@
                 <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .xyz" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
             <td>
-                <input type="button" readonly value="分子模型" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
+                <input type="button" onclick="importmol()" value="从画板导入2D分子" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
         </tr>
 
         <tr>
             <td>
-                <textarea id="textarea" style="width: 400px; height: 400px; resize: none;" wrap="off"></textarea>
+                <script>
+                    // 创建一个分子画板
+                    var sketcher = new ChemDoodle.SketcherCanvas('sketcher', 400, 400, {useServices:false, oneMolecule:false});
+                    sketcher.repaint();
+                </script>
             </td>
 
             <td>
                 <script>
-                    var Mol = new ChemDoodle.TransformCanvas3D('Mol-1', 400, 400);
+                    // 分子显示
+                    var Mol = new ChemDoodle.EditorCanvas3D('Mol-1', 400, 400, {useServices:false, includeToolbar:true});
                     Mol.specs.backgroundColor='#000000';
                     Mol.specs.set3DRepresentation('Ball and Stick');
                     Mol.specs.projectionPerspective_3D = false;
@@ -53,7 +60,6 @@
                     ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
                         Mol.loadMolecule(mol)
-                        $("textarea").value = fileContent
                     });
                     Mol.startAnimation(); // 开始动画
 
@@ -154,11 +160,23 @@
                                 }
                                 Mol.loadMolecule(obj);
                                 alertMolecule()
-                                $("textarea").value = content;
                             };
                             r.readAsText(a);
                         }
                         else alert("Failed to load file")
+                    }
+
+                    // import molecule from sketcher
+                    function importmol()
+                    {
+                        let mol2d = sketcher.getMolecule();
+                        if (mol2d) {
+                            // ChemDoodle.iChemLabs.optimize(mol2d, {dimension: 3}, function(m) {
+                            //     Mol.loadMolecule(m);
+                            // })
+                            Mol.loadMolecule(mol2d)
+                            alertMolecule()
+                        }
                     }
 
                     window.File && window.FileReader && window.FileList && window.Blob ? $("loadfile").addEventListener('change', loadfile, !1): alert("The File APIs are not fully supported by your browser.")
