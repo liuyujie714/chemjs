@@ -58,6 +58,11 @@
                     Mol.startAnimation(); // 开始动画
 
                     var $ = function(id) { return document.getElementById(id); }
+                    function alertMolecule() 
+                    {
+                        let message = 'This molecule contains ' + Mol.molecules[0].atoms.length + ' atoms and ' + Mol.molecules[0].bonds.length + ' bonds.';
+                        alert(message);
+                    }
         
                     function setview(id)
                     {   
@@ -136,7 +141,6 @@
                                 {
                                     case 'pdb':
                                         obj = ChemDoodle.readPDB(content);
-                                        alert(obj);
                                         break;
                                     case 'xyz':
                                         obj = ChemDoodle.readXYZ(ltrim(content));
@@ -149,6 +153,7 @@
                                         return;
                                 }
                                 Mol.loadMolecule(obj);
+                                alertMolecule()
                                 $("textarea").value = content;
                             };
                             r.readAsText(a);
