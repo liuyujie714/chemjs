@@ -3,7 +3,9 @@
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
+        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
+
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/ChemDoodleWeb-uis.js"></script>
         <title>分子可视化</title>
@@ -13,7 +15,7 @@
     <table>
         <tr>
             <td>
-                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .xyz" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
+                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .xyz, .tpr" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
             <td>
                 <input type="button" onclick="importmol()" value="从画板导入2D分子" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
@@ -31,6 +33,19 @@
 
             <td>
                 <script>
+                    // add atom serial (1-based) from mol
+                    function addAtomSerial(mol) {
+                        for (let i = 0; i < mol.atoms.length; i++) {
+                            mol.atoms[i].altLabel = mol.atoms[i].label+String(i+1);
+                        }
+                    }
+
+                    // add atom serial and loadMolecule
+                    function loadMol(mol) { 
+                        addAtomSerial(mol)
+                        Mol.loadMolecule(mol);
+                    }
+
                     // 分子显示
                     var Mol = new ChemDoodle.EditorCanvas3D('Mol-1', 400, 400, {useServices:false, includeToolbar:true});
                     Mol.specs.backgroundColor='#000000';
@@ -59,7 +74,7 @@
                     };
                     ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
-                        Mol.loadMolecule(mol)
+                        loadMol(mol)
                     });
                     Mol.startAnimation(); // 开始动画
 
@@ -135,12 +150,39 @@
 
                     function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
 
+                    // convert gromacs tpr binary stream to cif text and box
+                    function readTpr(arrbuffer) {
+                        let filename = "___temp.tpr";
+                        let stream = FS.open(filename, "w");
+                        let uint8View = new Uint8Array(arrbuffer);
+                        FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        FS.close(stream);
+                        let tpr = new Module.TprReader(filename, false, false, false);
+                        let c = tpr.get_xvf("x"); // nm
+                        let name = tpr.get_name('atom'); // atomname
+                        let box =  tpr.get_xvf("box");
+                        tpr.delete();
+                        let ux = box.get(0)*10.0;
+                        let uy = box.get(4)*10.0;
+                        let uz = box.get(8)*10.0;
+                        let cif = "data_GRA\n" + c.size()/3 + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + ux + "\n_cell_length_b " +  uy + "\n_cell_length_c " + uz + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n"
+                        for (let i = 0; i < c.size()/3; i++) {
+                            let x = c.get(3*i) * 10.0;
+                            let y = c.get(3*i+1) * 10.0;
+                            let z = c.get(3*i+2) * 10.0;
+                            // Here only use the first char to represent element!!!
+                            cif += printf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
+                        }
+                        return cif;
+                    }
+
                     function loadfile(t) {
                         let a=t.target.files[0];
                         if(a) {
                             let r=new FileReader;
+                            let s = extension(a.name);
+
                             r.onload=function(t) {
-                                let s = extension(a.name);
                                 content=t.target.result;
                                 let obj;
                                 switch(s)
@@ -154,14 +196,24 @@
                                     case 'mol':
                                         obj = ChemDoodle.readMOL(content);
                                         break;
+                                    case 'tpr':
+                                        obj = ChemDoodle.readCIF(readTpr(content), 1, 1, 1);
+                                        addAtomSerial(obj.molecule)
+                                        Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        break
                                     default:
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
-                                Mol.loadMolecule(obj);
+                                if (s!='tpr') loadMol(obj);
                                 alertMolecule()
                             };
-                            r.readAsText(a);
+                            if (s == 'tpr') {
+                                // binary context
+                                r.readAsArrayBuffer(a)
+                            } else {
+                                r.readAsText(a);
+                            }
                         }
                         else alert("Failed to load file")
                     }
@@ -174,7 +226,7 @@
                             // ChemDoodle.iChemLabs.optimize(mol2d, {dimension: 3}, function(m) {
                             //     Mol.loadMolecule(m);
                             // })
-                            Mol.loadMolecule(mol2d)
+                            loadMol(mol2d)
                             alertMolecule()
                         }
                     }
