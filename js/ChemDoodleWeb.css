@@ -1,10 +1,10 @@
 /*
 //
-// ChemDoodle Web Components 10.0.0
+// ChemDoodle Web Components 7.0.2
 //
-// https://web.chemdoodle.com
+// http://web.chemdoodle.com
 //
-// Copyright 2009-2024 iChemLabs, LLC.  All rights reserved.
+// Copyright 2009-2015 iChemLabs, LLC.  All rights reserved.
 //
 // The ChemDoodle Web Components library is licensed under version 3
 // of the GNU GENERAL PUBLIC LICENSE.
@@ -21,29 +21,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-// Please contact iChemLabs <https://www.ichemlabs.com/contact-us> for
+// Please contact iChemLabs <http://www.ichemlabs.com/contact-us> for
 // alternate licensing options.
 //
 */
 canvas.ChemDoodleWebComponent {
 	border: 1px solid black;
-}
-
-.stoichiometry_table{
-    table-layout: fixed;
-    border-spacing: 0px;
-    border-collapse: collapse;
-    margin: 20px;
-    width: 1%;
-    table-layout: auto !important;
-}
-.stoichiometry_table th, .stoichiometry_table td{
-    border: 1px solid black;
-    font-family: 'Times New Roman', serif;
-    color: black;
-    margin:0px;
-    width: auto !important;
-    white-space: nowrap;
-    padding-left:10px !important;
-    padding-right:10px !important;
 }

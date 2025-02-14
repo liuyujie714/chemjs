@@ -4,10 +4,10 @@
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
-        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
 
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.11.4.css" type="text/css">
-        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/ChemDoodleWeb-uis-10.0.js"></script>
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/ChemDoodleWeb-uis.js"></script>
         <title>分子可视化</title>
     </head>
     
@@ -48,14 +48,14 @@
 
                     // 分子显示
                     var Mol = new ChemDoodle.EditorCanvas3D('Mol-1', 400, 400, {useServices:false, includeToolbar:true});
-                    Mol.styles.backgroundColor='#000000';
-                    Mol.styles.set3DRepresentation('Ball and Stick');
-                    Mol.styles.projectionPerspective_3D = true; // 透视
-                    Mol.styles.compass_display=true; // 坐标轴显示
-                    Mol.styles.atoms_displayLabels_3D=false; // 原子标签显示
-                    Mol.styles.bonds_splitColor = true;
-                    Mol.styles.text_font_stroke_3D = true;
-                    Mol.styles.bonds_cylinderDiameter_3D = 0.3; //键粗细
+                    Mol.specs.backgroundColor='#000000';
+                    Mol.specs.set3DRepresentation('Ball and Stick');
+                    Mol.specs.projectionPerspective_3D = true; // 透视投影
+                    Mol.specs.compass_display=true; // 坐标轴显示
+                    Mol.specs.atoms_displayLabels_3D=false; // 原子标签显示
+                    Mol.specs.bonds_splitColor = true;
+                    Mol.specs.text_font_stroke_3D = true;
+                    Mol.specs.bonds_cylinderDiameter_3D = 0.3; //键粗细
                     // 动画设置
                     Mol.handle = null;
                     Mol.timeout = 15;
@@ -90,19 +90,19 @@
                         switch(id)
                         {
                             case 'Line':
-                                Mol.styles.set3DRepresentation('Line');
+                                Mol.specs.set3DRepresentation('Line');
                                 break;
                             case 'Stick':
-                                Mol.styles.set3DRepresentation('Stick');
+                                Mol.specs.set3DRepresentation('Stick');
                                 break;
                             case 'Wireframe':
-                                Mol.styles.set3DRepresentation('Wireframe');
+                                Mol.specs.set3DRepresentation('Wireframe');
                                 break;
                             case 'vdW':
-                                Mol.styles.set3DRepresentation('van der Waals Spheres');
+                                Mol.specs.set3DRepresentation('van der Waals Spheres');
                                 break;
                             case 'CPK':
-                                Mol.styles.set3DRepresentation('Ball and Stick');
+                                Mol.specs.set3DRepresentation('Ball and Stick');
                                 break;
                         }
                         Mol.repaint();
@@ -144,7 +144,7 @@
 
                     function showlabel()
                     {
-                        Mol.styles.atoms_displayLabels_3D=$("label").checked;
+                        Mol.specs.atoms_displayLabels_3D=$("label").checked;
                         Mol.repaint();
                     }
 
@@ -165,7 +165,7 @@
                         let ux = box.get(0)*10.0;
                         let uy = box.get(4)*10.0;
                         let uz = box.get(8)*10.0;
-                        let cif = "data_GRA\n" + c.size()/3 + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + ux + "\n_cell_length_b " +  uy + "\n_cell_length_c " + uz + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n"
+                        let cif = "data_GRA\n" + String(c.size()/3) + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + String(ux) + "\n_cell_length_b " +  String(uy) + "\n_cell_length_c " + String(uz) + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n"
                         for (let i = 0; i < c.size()/3; i++) {
                             let x = c.get(3*i) * 10.0;
                             let y = c.get(3*i+1) * 10.0;
