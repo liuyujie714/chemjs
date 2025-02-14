@@ -48,14 +48,14 @@
 
                     // 分子显示
                     var Mol = new ChemDoodle.EditorCanvas3D('Mol-1', 400, 400, {useServices:false, includeToolbar:true});
-                    Mol.specs.backgroundColor='#000000';
-                    Mol.specs.set3DRepresentation('Ball and Stick');
-                    Mol.specs.projectionPerspective_3D = false;
-                    Mol.specs.compass_display=true; // 坐标轴显示
-                    Mol.specs.atoms_displayLabels_3D=false; // 原子标签显示
-                    Mol.specs.bonds_splitColor = true;
-                    Mol.specs.text_font_stroke_3D = true;
-                    Mol.specs.bonds_cylinderDiameter_3D = 0.3; //键粗细
+                    Mol.styles.backgroundColor='#000000';
+                    Mol.styles.set3DRepresentation('Ball and Stick');
+                    Mol.styles.projectionPerspective_3D = true; // 透视
+                    Mol.styles.compass_display=true; // 坐标轴显示
+                    Mol.styles.atoms_displayLabels_3D=false; // 原子标签显示
+                    Mol.styles.bonds_splitColor = true;
+                    Mol.styles.text_font_stroke_3D = true;
+                    Mol.styles.bonds_cylinderDiameter_3D = 0.3; //键粗细
                     // 动画设置
                     Mol.handle = null;
                     Mol.timeout = 15;
@@ -90,19 +90,19 @@
                         switch(id)
                         {
                             case 'Line':
-                                Mol.specs.set3DRepresentation('Line');
+                                Mol.styles.set3DRepresentation('Line');
                                 break;
                             case 'Stick':
-                                Mol.specs.set3DRepresentation('Stick');
+                                Mol.styles.set3DRepresentation('Stick');
                                 break;
                             case 'Wireframe':
-                                Mol.specs.set3DRepresentation('Wireframe');
+                                Mol.styles.set3DRepresentation('Wireframe');
                                 break;
                             case 'vdW':
-                                Mol.specs.set3DRepresentation('van der Waals Spheres');
+                                Mol.styles.set3DRepresentation('van der Waals Spheres');
                                 break;
                             case 'CPK':
-                                Mol.specs.set3DRepresentation('Ball and Stick');
+                                Mol.styles.set3DRepresentation('Ball and Stick');
                                 break;
                         }
                         Mol.repaint();
@@ -144,7 +144,7 @@
 
                     function showlabel()
                     {
-                        Mol.specs.atoms_displayLabels_3D=$("label").checked;
+                        Mol.styles.atoms_displayLabels_3D=$("label").checked;
                         Mol.repaint();
                     }
 
