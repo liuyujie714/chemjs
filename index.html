@@ -148,6 +148,12 @@
                         Mol.repaint();
                     }
 
+                    // find 3-9 members rings from mol 
+                    function findRings(mol) {
+                        // fingerBreak = 5
+                        return (new ChemDoodle.informatics.EulerFacetRingFinder(mol)).rings
+                    }
+
                     function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
 
                     // convert gromacs tpr binary stream to cif text and box
@@ -198,19 +204,22 @@
                                         break;
                                     case 'tpr':
                                         obj = ChemDoodle.readCIF(readTpr(content), 1, 1, 1);
-                                        addAtomSerial(obj.molecule)
+                                        
+                                        addAtomSerial(obj.molecule);
                                         Mol.loadContent([obj.molecule], [obj.unitCell]);
-                                        break
+                                        break;
                                     default:
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
                                 if (s!='tpr') loadMol(obj);
-                                alertMolecule()
+                                // let rings = findRings(Mol.molecules[0])
+                                // alert("total rings: " + rings.length)
+                                alertMolecule();
                             };
                             if (s == 'tpr') {
                                 // binary context
-                                r.readAsArrayBuffer(a)
+                                r.readAsArrayBuffer(a);
                             } else {
                                 r.readAsText(a);
                             }
