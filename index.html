@@ -64,9 +64,9 @@
                     Mol.isRunning = ChemDoodle._AnimatorCanvas.prototype.isRunning;
                     Mol.dblclick = ChemDoodle.RotatorCanvas.prototype.dblclick;
                     Mol.nextFrame = function(delta){
-                        var matrix = [];
+                        let matrix = [];
                         ChemDoodle.lib.mat4.identity(matrix);
-                        var change = delta*Math.PI/15000;
+                        let change = delta*Math.PI/15000;
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 1, 0, 0 ]);
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 1, 0 ]);
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 0, 1 ]);
