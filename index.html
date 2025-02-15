@@ -19,7 +19,7 @@
     <table>
         <tr>
             <td>
-                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .xyz, .tpr" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
+                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .chg, .xyz, .tpr" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
             </td>
             <td>
                 <input type="button" id="import3d" onclick="molFromSmile()" value="从画板导入2D分子" style="font-size:1em;font-weight:bold;color:red;width:100%; height:30px" />
@@ -58,7 +58,7 @@
                     }
 
                     // 分子显示
-                    var Mol = new ChemDoodle.EditorCanvas3D('Mol-1', 400, 400, {useServices:false, includeToolbar:true});
+                    var Mol = new ChemDoodle.EditorCanvas3D('Mol', 400, 400, {useServices:false, includeToolbar:true});
                     Mol.specs.backgroundColor='#000000';
                     Mol.specs.set3DRepresentation('Ball and Stick');
                     Mol.specs.projectionPerspective_3D = true; // 透视投影
@@ -213,6 +213,13 @@
                                     case 'mol':
                                         obj = ChemDoodle.readMOL(content, 1);
                                         break;
+                                    case 'chg':
+                                        let nat = 0;
+                                        content.split('\n').forEach(function (line) {
+                                            if(line.match(/^[a-zA-Z)]/)) {nat += 1;}
+                                        });
+                                        obj = ChemDoodle.readXYZ(ltrim(nat+"\nMOL\n"+content));
+                                        break;
                                     case 'tpr':
                                         obj = ChemDoodle.readCIF(readTpr(content), 1, 1, 1);
                                         addAtomSerial(obj.molecule);
@@ -243,7 +250,6 @@
                         if (s = jme._getSmiles()) {
                             b.disabled = true; // 禁用按钮
                             Mol.stopAnimation(); //  停止动画
-                            
                             try {
                                 const url = "https://cactus.nci.nih.gov/chemical/structure/" + 
                                             s.replace(/#/g, "%23").replace(/\\/g, "%5C") + 
