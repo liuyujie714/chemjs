@@ -19,7 +19,7 @@
     <table>
         <tr>
             <td>
-                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cif, .chg, .xyz, .tpr" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
+                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
             </td>
             <td>
                 <div style="display: flex;">
@@ -99,14 +99,12 @@
                     Mol.startAnimation(); // 开始动画
 
                     var $ = function(id) { return document.getElementById(id); }
-                    function alertMolecule() 
-                    {
+                    function alertMolecule() {
                         let message = 'This molecule contains ' + Mol.molecules[0].atoms.length + ' atoms and ' + Mol.molecules[0].bonds.length + ' bonds.';
                         alert(message);
                     }
         
-                    function setview(id)
-                    {   
+                    function setview(id) {   
                         switch(id)
                         {
                             case 'Line':
@@ -129,30 +127,26 @@
                     }
 
                     // only work %s and %f
-                    function printf()
-                    {
+                    function sprintf() {
                         var a={s:function(a,b){return b*=1,m=Array(Math.max(Math.abs(b)-a.length+1,0)).join(" "),b>0?m+a:a+m},f:function(a,b){return b=b.split("."),a=parseFloat(a).toFixed(b[1]),m=Array(Math.max(Math.abs(b[0])-a.length+1,0)).join(" "),b[0]>0?m+a:a+m}},b=Array.prototype.slice.call(arguments).slice();return b.shift().toString().replace(/%(-*\d*\.*\d*)([sf])/g,function(c,d,e){if(!b.length)throw new Error("Too few elements");return a[e](b.shift(),d)})
                     }
         
-                    function getcoords()
-                    {
+                    function getcoords() {
                        // 第一个分子
                        let atoms = Mol.molecules[0].atoms;
                        let s = atoms.length+"\nMOL\n";
                        atoms.forEach(e => {
-                            s += printf("%5s", e.label)+printf("%12.6f", e.x)+printf("%12.6f", e.y)+printf("%12.6f", e.z)+"\n";
+                            s += sprintf("%5s", e.label)+sprintf("%12.6f", e.x)+sprintf("%12.6f", e.y)+sprintf("%12.6f", e.z)+"\n";
                        });
                        $("textarea").value = s;
                     }
 
                     // remove multi started spaces and add '\n'
-                    function ltrim(s)
-                    {
+                    function ltrim(s) {
                         return s.split('\n').map(line=>line.trimStart()).join('\n');
                     }
 
-                    function setcoords()
-                    {
+                    function setcoords() {
                         try {
                             let xyz = ChemDoodle.readXYZ(ltrim($("textarea").value));
                             Mol.loadMolecule(xyz);
@@ -163,8 +157,7 @@
                         }
                     }
 
-                    function showlabel()
-                    {
+                    function showlabel() {
                         Mol.specs.atoms_displayLabels_3D=$("label").checked;
                         Mol.repaint();
                     }
@@ -176,6 +169,10 @@
                     }
 
                     function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
+
+                    function cif_header(n, ux, uy, uz) {
+                        return "data_MOL\n" + n + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + ux + "\n_cell_length_b " +  uy + "\n_cell_length_c " + uz + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n";
+                    }
 
                     // convert gromacs tpr binary stream to cif text and box
                     function readTpr(arrbuffer) {
@@ -192,13 +189,13 @@
                         let ux = box.get(0)*10.0;
                         let uy = box.get(4)*10.0;
                         let uz = box.get(8)*10.0;
-                        let cif = "data_GRA\n" + String(c.size()/3) + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + String(ux) + "\n_cell_length_b " +  String(uy) + "\n_cell_length_c " + String(uz) + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n"
+                        let cif = cif_header(c.size()/3, ux, uy, uz);
                         for (let i = 0; i < c.size()/3; i++) {
                             let x = c.get(3*i) * 10.0;
                             let y = c.get(3*i+1) * 10.0;
                             let z = c.get(3*i+2) * 10.0;
                             // Here only use the first char to represent element!!!
-                            cif += printf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
+                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
                         }
                         return cif;
                     }
@@ -206,6 +203,9 @@
                     function loadfile(t) {
                         let a=t.target.files[0];
                         if(a) {
+                            // 停止动画
+                            Mol.stopAnimation();
+
                             let r=new FileReader;
                             let s = extension(a.name);
 
@@ -235,11 +235,51 @@
                                         addAtomSerial(obj.molecule);
                                         Mol.loadContent([obj.molecule], [obj.unitCell]);
                                         break;
+                                    case 'gro':
+                                        // TODO: add box
+                                        let n=0;
+                                        let coords = [], atoms = [];
+                                        content.split('\n').forEach(function (line, index) {
+                                            if (index>=2 && /[a-zA-Z]/.test(line)) {
+                                                let atom = line.substring(10, 15).trim().replace(/\d/g, '');
+                                                // process HW or OW
+                                                if (atom.substring(0, 2).toUpperCase()=='HW' || atom.substring(0, 2).toUpperCase()=='OW') {
+                                                    atom = atom[0];
+                                                }
+                                                atoms.push(atom);
+
+                                                let x = parseFloat(line.substring(20, 28).trim()) * 10.0;
+                                                let y = parseFloat(line.substring(28, 36).trim()) * 10.0;
+                                                let z = parseFloat(line.substring(36, 44).trim()) * 10.0;
+                                                coords.push([x, y, z]);
+                                                n++;
+                                            }
+                                        });
+                                        // get gro box
+                                        let box = content.split('\n')[n+2].trim().split(/\s+/).map(f=>parseFloat(f)*10.0);
+                                        let hasbox = (box[0]>0 && box[1]>0 && box[2]>0);
+                                        // load gro to scene
+                                        if (hasbox) {
+                                            let text = cif_header(coords.length, box[0], box[1], box[2]);
+                                            coords.forEach(function (c, index) {
+                                                text += "MOL " + atoms[index] + ' ' + c[0]/box[0] + ' ' + c[1]/box[1] + ' ' + c[2]/box[2] + '\n';
+                                            });
+                                            obj = ChemDoodle.readCIF(text, 1, 1, 1);
+                                            addAtomSerial(obj.molecule); // must do it
+                                            Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        } else {
+                                            let text = coords.length + "\nMOL\n";
+                                            coords.forEach(function (c, index) {
+                                                text += atoms[index] + ' ' + c[0] + ' ' + c[1] + ' ' + c[2] + '\n';
+                                            });
+                                            loadMol(ChemDoodle.readXYZ(ltrim(text)));
+                                        }
+                                        break;
                                     default:
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
-                                if (s!='tpr') loadMol(obj);
+                                if (s!='tpr' && s!='gro') loadMol(obj);
                                 // let rings = findRings(Mol.molecules[0])
                                 // alert("total rings: " + rings.length)
                                 alertMolecule();
@@ -275,19 +315,20 @@
                             } finally {
                                 b.disabled = false; // 无论成功与否，最终恢复按钮
                             }
+                        } else {
+                            alert("错误! 画板中没有分子")
                         }
                     }
 
                     // save mol2 file
-                    function savefile()
-                    {
+                    function savefile() {
                         let mol = Mol.getMolecule();
                         if (mol) {
                             let context = "# Mol2 file generated by chemjs\n@<TRIPOS>MOLECULE\nMOL\n"+mol.atoms.length+
                                 " "+mol.bonds.length+" "+" 0 0 0\nSMALL\nNO_CHARGES\n\n@<TRIPOS>ATOM\n";
                             let i = 1;
                             mol.atoms.forEach(function (atom) {
-                                context += printf("%-5s %s %8.3f%8.3f%8.3f %5s\n", String(i), atom.label+i, atom.x, atom.y, atom.z, atom.label);
+                                context += sprintf("%-5s %s %8.3f%8.3f%8.3f %5s\n", String(i), atom.label+(i<10000? i:'X'), atom.x, atom.y, atom.z, atom.label);
                                 i++;
                             });
                             // bonds
@@ -296,7 +337,7 @@
                             mol.bonds.forEach(function (bond) {
                                 let a1 = g_lab2ids.get(bond.a1.altLabel)+1;
                                 let a2 = g_lab2ids.get(bond.a2.altLabel)+1;
-                                context += printf("%-5s %5s %5s %5s\n", String(i), String(a1), String(a2), String(bond.bondOrder));
+                                context += sprintf("%-5s %5s %5s %5s\n", String(i), String(a1), String(a2), String(bond.bondOrder));
                                 i++;
                             });
                             download(context, "mol.mol2");
