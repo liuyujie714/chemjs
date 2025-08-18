@@ -301,16 +301,18 @@
                                             // }
                                             addAtomSerial(obj.molecule);
                                             Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                            alertMolecule();
                                         });
-                                        break;
+                                        return; // must return
                                     case 'chk':
                                         readCHK(content).then(chk => { 
                                             obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
                                             addAtomSerial(obj.molecule);
                                             // TODO: add unit cell???
                                             Mol.loadContent([obj.molecule]);
+                                            alertMolecule();
                                         });
-                                        break;
+                                        return; // must return
                                     case 'gro':
                                         let n=0;
                                         let coords = [], atoms = [];
@@ -354,10 +356,12 @@
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
-                                if (s!='tpr' && s!='chk' && s!='gro') loadMol(obj);
+                                
+                                // only for text files
+                                loadMol(obj);
+                                alertMolecule();
                                 // let rings = findRings(Mol.molecules[0])
                                 // alert("total rings: " + rings.length)
-                                alertMolecule();
                             };
                             if (s == 'tpr' || s == 'chk') {
                                 // binary context
