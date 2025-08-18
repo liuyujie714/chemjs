@@ -202,15 +202,17 @@
                         return {cif:cif, box:box};
                     }
 
-                    function readCHK(arrbuffer) {
+                    async function readCHK(arrbuffer) {
                         let filename = "___temp.chk";
-                        let stream = ChkModule.FS.open(filename, "w");
+                        let module = await ChkModule();
+                        let stream = module.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        ChkModule.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        ChkModule.FS.close(stream);
-                        let chk = new ChkModule.GauChkParserWarpper(filename);
-                        let names = chk.get_name(); // element names
+                        module.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        module.FS.close(stream);
+                        let chk = new module.GauChkParserWarpper(filename);
+                        let name = chk.get_name(); // element names
                         let c = chk.get_coords(); // coorrds, 3*natoms
+                        chk.delete();
                         let natoms = c.size()/3;
                         let ux = 1, uy = 1, uz = 1;
                         let cif = cif_header(natoms, ux, uy, uz);
@@ -221,7 +223,8 @@
                             // Here only use the first char to represent element!!!
                             cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
                         }
-                        return {cif:cif, box:box};
+                        console.log(cif);
+                        return {cif:cif};
                     }
 
                     function get_com(mol) {
