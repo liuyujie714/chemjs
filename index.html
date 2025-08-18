@@ -4,6 +4,7 @@
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgauchk.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
@@ -189,15 +190,29 @@
                         let ux = box.get(0)*10.0;
                         let uy = box.get(4)*10.0;
                         let uz = box.get(8)*10.0;
-                        let cif = cif_header(c.size()/3, ux, uy, uz);
-                        for (let i = 0; i < c.size()/3; i++) {
+                        let natoms = c.size()/3;
+                        let cif = cif_header(natoms, ux, uy, uz);
+                        for (let i = 0; i < natoms; i++) {
                             let x = c.get(3*i) * 10.0;
                             let y = c.get(3*i+1) * 10.0;
                             let z = c.get(3*i+2) * 10.0;
                             // Here only use the first char to represent element!!!
                             cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
                         }
-                        return cif;
+                        return {cif:cif, box:box};
+                    }
+
+                    function get_com(mol) {
+                        let com = [0,0,0];
+                        mol.atoms.forEach(function (atom) {
+                            com[0] += atom.x;
+                            com[1] += atom.y;
+                            com[2] += atom.z;
+                        });
+                        com[0] /= mol.atoms.length;
+                        com[1] /= mol.atoms.length;
+                        com[2] /= mol.atoms.length;
+                        return com;
                     }
 
                     function loadfile(t) {
@@ -231,7 +246,33 @@
                                         obj = ChemDoodle.readXYZ(ltrim(nat+"\nMOL\n"+content));
                                         break;
                                     case 'tpr':
-                                        obj = ChemDoodle.readCIF(readTpr(content), 1, 1, 1);
+                                        tpr = readTpr(content);
+                                        obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
+                                        // correct box position? When has vapor region
+                                        // TODO: have issue
+                                        // {
+                                        //     let com = get_com(obj.molecule);
+                                        //     let dbox = [tpr.box.get(0)*5-com[0], 
+                                        //                 tpr.box.get(4)*5-com[1], 
+                                        //                 tpr.box.get(8)*5-com[2]];
+                                        //     let u = obj.unitCell.unitCell
+                                        //     for (let i = 0; i < 3; i++) {
+                                        //         u.o[i] += dbox[i];
+                                        //         u.x[i] += dbox[i];
+                                        //         u.y[i] += dbox[i];
+                                        //         u.z[i] += dbox[i];
+                                        //         u.xy[i] += dbox[i];
+                                        //         u.xz[i] += dbox[i];
+                                        //         u.yz[i] += dbox[i];
+                                        //         u.xyz[i] += dbox[i];
+                                        //     }
+                                        //     u = obj.unitCell.positionData;
+                                        //     for (let i = 0; i < 72; i+=3) {
+                                        //         u[i]   += dbox[0];
+                                        //         u[i+1] += dbox[1];
+                                        //         u[i+2] += dbox[2];
+                                        //     }
+                                        // }
                                         addAtomSerial(obj.molecule);
                                         Mol.loadContent([obj.molecule], [obj.unitCell]);
                                         break;
