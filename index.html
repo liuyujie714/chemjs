@@ -176,13 +176,14 @@
                     }
 
                     // convert gromacs tpr binary stream to cif text and box
-                    function readTpr(arrbuffer) {
+                    async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
-                        let stream = TprModule.FS.open(filename, "w");
+                        let module = await TprModule();
+                        let stream = module.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        TprModule.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        TprModule.FS.close(stream);
-                        let tpr = new TprModule.TprReader(filename, false, false, false);
+                        module.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        module.FS.close(stream);
+                        let tpr = new module.TprReader(filename, false, false, false);
                         let c = tpr.get_xvf("x"); // nm
                         let name = tpr.get_name('atom'); // atomname
                         let box =  tpr.get_xvf("box");
@@ -202,6 +203,7 @@
                         return {cif:cif, box:box};
                     }
 
+                    // convert gaussian binary chk file to cif text
                     async function readCHK(arrbuffer) {
                         let filename = "___temp.chk";
                         let module = await ChkModule();
@@ -223,7 +225,6 @@
                             // Here only use the first char to represent element!!!
                             cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
                         }
-                        console.log(cif);
                         return {cif:cif};
                     }
 
@@ -271,44 +272,46 @@
                                         obj = ChemDoodle.readXYZ(ltrim(nat+"\nMOL\n"+content));
                                         break;
                                     case 'tpr':
-                                        tpr = readTpr(content);
-                                        obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
-                                        // correct box position? When has vapor region
-                                        // TODO: have issue
-                                        // {
-                                        //     let com = get_com(obj.molecule);
-                                        //     let dbox = [tpr.box.get(0)*5-com[0], 
-                                        //                 tpr.box.get(4)*5-com[1], 
-                                        //                 tpr.box.get(8)*5-com[2]];
-                                        //     let u = obj.unitCell.unitCell
-                                        //     for (let i = 0; i < 3; i++) {
-                                        //         u.o[i] += dbox[i];
-                                        //         u.x[i] += dbox[i];
-                                        //         u.y[i] += dbox[i];
-                                        //         u.z[i] += dbox[i];
-                                        //         u.xy[i] += dbox[i];
-                                        //         u.xz[i] += dbox[i];
-                                        //         u.yz[i] += dbox[i];
-                                        //         u.xyz[i] += dbox[i];
-                                        //     }
-                                        //     u = obj.unitCell.positionData;
-                                        //     for (let i = 0; i < 72; i+=3) {
-                                        //         u[i]   += dbox[0];
-                                        //         u[i+1] += dbox[1];
-                                        //         u[i+2] += dbox[2];
-                                        //     }
-                                        // }
-                                        addAtomSerial(obj.molecule);
-                                        Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        readTpr(content).then(tpr => { 
+                                            obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
+                                            // correct box position? When has vapor region
+                                            // TODO: have issue
+                                            // {
+                                            //     let com = get_com(obj.molecule);
+                                            //     let dbox = [tpr.box.get(0)*5-com[0], 
+                                            //                 tpr.box.get(4)*5-com[1], 
+                                            //                 tpr.box.get(8)*5-com[2]];
+                                            //     let u = obj.unitCell.unitCell
+                                            //     for (let i = 0; i < 3; i++) {
+                                            //         u.o[i] += dbox[i];
+                                            //         u.x[i] += dbox[i];
+                                            //         u.y[i] += dbox[i];
+                                            //         u.z[i] += dbox[i];
+                                            //         u.xy[i] += dbox[i];
+                                            //         u.xz[i] += dbox[i];
+                                            //         u.yz[i] += dbox[i];
+                                            //         u.xyz[i] += dbox[i];
+                                            //     }
+                                            //     u = obj.unitCell.positionData;
+                                            //     for (let i = 0; i < 72; i+=3) {
+                                            //         u[i]   += dbox[0];
+                                            //         u[i+1] += dbox[1];
+                                            //         u[i+2] += dbox[2];
+                                            //     }
+                                            // }
+                                            addAtomSerial(obj.molecule);
+                                            Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        });
                                         break;
                                     case 'chk':
-                                        chk = readCHK(content);
-                                        obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
-                                        addAtomSerial(obj.molecule);
-                                        Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        readCHK(content).then(chk => { 
+                                            obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
+                                            addAtomSerial(obj.molecule);
+                                            // TODO: add unit cell???
+                                            Mol.loadContent([obj.molecule]);
+                                        });
                                         break;
                                     case 'gro':
-                                        // TODO: add box
                                         let n=0;
                                         let coords = [], atoms = [];
                                         content.split('\n').forEach(function (line, index) {
