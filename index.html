@@ -20,7 +20,7 @@
     <table>
         <tr>
             <td>
-                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
+                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr, .chk" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
             </td>
             <td>
                 <div style="display: flex;">
@@ -182,7 +182,7 @@
                         let uint8View = new Uint8Array(arrbuffer);
                         FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
                         FS.close(stream);
-                        let tpr = new Module.TprReader(filename, false, false, false);
+                        let tpr = new TprModule.TprReader(filename, false, false, false);
                         let c = tpr.get_xvf("x"); // nm
                         let name = tpr.get_name('atom'); // atomname
                         let box =  tpr.get_xvf("box");
@@ -196,6 +196,28 @@
                             let x = c.get(3*i) * 10.0;
                             let y = c.get(3*i+1) * 10.0;
                             let z = c.get(3*i+2) * 10.0;
+                            // Here only use the first char to represent element!!!
+                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
+                        }
+                        return {cif:cif, box:box};
+                    }
+
+                    function readCHK(arrbuffer) {
+                        let filename = "___temp.chk";
+                        let stream = FS.open(filename, "w");
+                        let uint8View = new Uint8Array(arrbuffer);
+                        FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        FS.close(stream);
+                        let chk = new ChkModule.GauChkParserWarpper(filename);
+                        let names = chk.get_name(); // element names
+                        let c = chk.get_coords(); // coorrds, 3*natoms
+                        let natoms = c.size()/3;
+                        let ux = 1, uy = 1, uz = 1;
+                        let cif = cif_header(natoms, ux, uy, uz);
+                        for (let i = 0; i < natoms; i++) {
+                            let x = c.get(3*i);
+                            let y = c.get(3*i+1);
+                            let z = c.get(3*i+2);
                             // Here only use the first char to represent element!!!
                             cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
                         }
@@ -276,6 +298,12 @@
                                         addAtomSerial(obj.molecule);
                                         Mol.loadContent([obj.molecule], [obj.unitCell]);
                                         break;
+                                    case 'chk':
+                                        chk = readCHK(content);
+                                        obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
+                                        addAtomSerial(obj.molecule);
+                                        Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                        break;
                                     case 'gro':
                                         // TODO: add box
                                         let n=0;
@@ -320,12 +348,12 @@
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
-                                if (s!='tpr' && s!='gro') loadMol(obj);
+                                if (s!='tpr' && s!='chk' && s!='gro') loadMol(obj);
                                 // let rings = findRings(Mol.molecules[0])
                                 // alert("total rings: " + rings.length)
                                 alertMolecule();
                             };
-                            if (s == 'tpr') {
+                            if (s == 'tpr' || s == 'chk') {
                                 // binary context
                                 r.readAsArrayBuffer(a);
                             } else {
