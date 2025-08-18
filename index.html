@@ -222,8 +222,7 @@
                             let x = c.get(3*i);
                             let y = c.get(3*i+1);
                             let z = c.get(3*i+2);
-                            // Here only use the first char to represent element!!!
-                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
+                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i), x/ux, y/uy, z/uz);
                         }
                         return {cif:cif};
                     }
