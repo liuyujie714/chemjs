@@ -178,10 +178,10 @@
                     // convert gromacs tpr binary stream to cif text and box
                     function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
-                        let stream = FS.open(filename, "w");
+                        let stream = TprModule.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        FS.close(stream);
+                        TprModule.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        TprModule.FS.close(stream);
                         let tpr = new TprModule.TprReader(filename, false, false, false);
                         let c = tpr.get_xvf("x"); // nm
                         let name = tpr.get_name('atom'); // atomname
@@ -204,10 +204,10 @@
 
                     function readCHK(arrbuffer) {
                         let filename = "___temp.chk";
-                        let stream = FS.open(filename, "w");
+                        let stream = ChkModule.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        FS.close(stream);
+                        ChkModule.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
+                        ChkModule.FS.close(stream);
                         let chk = new ChkModule.GauChkParserWarpper(filename);
                         let names = chk.get_name(); // element names
                         let c = chk.get_coords(); // coorrds, 3*natoms
