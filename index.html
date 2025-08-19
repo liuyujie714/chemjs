@@ -61,8 +61,8 @@
                         }
                     }
 
-                    // add atom serial and loadMolecule
-                    function loadMol(mol) { 
+                    // add atom serial and loadMolecule (without pbc)
+                    function loadMolNoPBC(mol) { 
                         addAtomSerial(mol)
                         Mol.loadMolecule(mol);
                     }
@@ -70,13 +70,13 @@
                     // 分子显示
                     var Mol = new ChemDoodle.EditorCanvas3D('Mol', 400, 400, {useServices:false, includeToolbar:true});
                     Mol.specs.backgroundColor='#000000';
-                    Mol.specs.set3DRepresentation('Ball and Stick');
+                    Mol.specs.set3DRepresentation('Line');
                     Mol.specs.projectionPerspective_3D = true; // 透视投影
                     Mol.specs.compass_display=true; // 坐标轴显示
                     Mol.specs.atoms_displayLabels_3D=false; // 原子标签显示
                     Mol.specs.bonds_splitColor = true;
                     Mol.specs.text_font_stroke_3D = true;
-                    Mol.specs.bonds_cylinderDiameter_3D = 0.3; //键粗细
+                    //Mol.specs.bonds_cylinderDiameter_3D = 0.3; //键粗细
                     // 动画设置
                     Mol.handle = null;
                     Mol.timeout = 15;
@@ -95,7 +95,7 @@
                     };
                     ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
                         let mol = ChemDoodle.readXYZ(ltrim(fileContent));
-                        loadMol(mol)
+                        loadMolNoPBC(mol);
                     });
                     Mol.startAnimation(); // 开始动画
 
@@ -171,60 +171,166 @@
 
                     function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
 
-                    function cif_header(n, ux, uy, uz) {
-                        return "data_MOL\n" + n + "\n_symmetry_space_group_name_' '" + "\n_cell_length_a " + ux + "\n_cell_length_b " +  uy + "\n_cell_length_c " + uz + "\n_cell_angle_alpha 90\n_cell_angle_beta  90\n_cell_angle_gamma 90" + "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n";
+                    function triclinicToABC(lx, ly, lz, xy, xz, yz) {
+                        const a = [lx, 0, 0];
+                        const b = [xy, ly, 0];
+                        const c = [xz, yz, lz];
+
+                        const norm = v => Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+                        const dot = (u, v) => u[0]*v[0] + u[1]*v[1] + u[2]*v[2];
+
+                        const na = norm(a);
+                        const nb = norm(b);
+                        const nc = norm(c);
+
+                        const alpha = Math.acos(dot(b, c) / (nb * nc)) * 180 / Math.PI;
+                        const beta  = Math.acos(dot(a, c) / (na * nc)) * 180 / Math.PI;
+                        const gamma = Math.acos(dot(a, b) / (na * nb)) * 180 / Math.PI;
+
+                        return { a: na, b: nb, c: nc, alpha, beta, gamma };
                     }
 
-                    // convert gromacs tpr binary stream to cif text and box
+                    // convert cartesian to fractional
+                    function fracCoords(x, y, z, a_vec, b_vec, c_vec) {
+                        let M = [
+                            [a_vec[0], b_vec[0], c_vec[0]],
+                            [a_vec[1], b_vec[1], c_vec[1]],
+                            [a_vec[2], b_vec[2], c_vec[2]]
+                        ];
+
+                        // 求逆
+                        let det = M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])
+                                - M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])
+                                + M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+
+                        let inv = [
+                            [
+                            (M[1][1]*M[2][2]-M[1][2]*M[2][1])/det,
+                            (M[0][2]*M[2][1]-M[0][1]*M[2][2])/det,
+                            (M[0][1]*M[1][2]-M[0][2]*M[1][1])/det
+                            ],
+                            [
+                            (M[1][2]*M[2][0]-M[1][0]*M[2][2])/det,
+                            (M[0][0]*M[2][2]-M[0][2]*M[2][0])/det,
+                            (M[0][2]*M[1][0]-M[0][0]*M[1][2])/det
+                            ],
+                            [
+                            (M[1][0]*M[2][1]-M[1][1]*M[2][0])/det,
+                            (M[0][1]*M[2][0]-M[0][0]*M[2][1])/det,
+                            (M[0][0]*M[1][1]-M[0][1]*M[1][0])/det
+                            ]
+                        ];
+
+                        // 乘以逆矩阵
+                        let fx = inv[0][0]*x + inv[0][1]*y + inv[0][2]*z;
+                        let fy = inv[1][0]*x + inv[1][1]*y + inv[1][2]*z;
+                        let fz = inv[2][0]*x + inv[2][1]*y + inv[2][2]*z;
+
+                        return [fx, fy, fz];
+                    }
+
+                    // 没有任何对称操作，只能针对有晶胞信息的体系，没有盒子大小的体系不可用cif
+                    function cif_header(n, crystal) {
+                        return "data_MOL\n" + "__chemical_name_mineral " + n + 
+                        "\n_cell_length_a " + crystal.a + "\n_cell_length_b " +  crystal.b + "\n_cell_length_c " + crystal.c + 
+                        "\n_cell_angle_alpha " + crystal.alpha +
+                        "\n_cell_angle_beta " + crystal.beta + 
+                        "\n_cell_angle_gamma " + crystal.gamma + 
+                        "\n_symmetry_space_group_name_H-M 'P 1'" + "\nloop_\n_space_group_symop_operation_xyz\n'x, y, z'" +
+                        "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n";
+                    }
+
+                    // convert gromacs tpr binary stream to cif & xyz text
                     async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
                         let module = await TprModule();
-                        let stream = module.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        module.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        module.FS.close(stream);
+                        module.FS.writeFile(filename, uint8View);
                         let tpr = new module.TprReader(filename, false, false, false);
                         let c = tpr.get_xvf("x"); // nm
                         let name = tpr.get_name('atom'); // atomname
                         let box =  tpr.get_xvf("box");
                         tpr.delete();
+                        module.FS.unlink(filename);
                         let ux = box.get(0)*10.0;
                         let uy = box.get(4)*10.0;
                         let uz = box.get(8)*10.0;
+                        let xy = box.get(3)*10.0;
+                        let xz = box.get(6)*10.0;
+                        let yz = box.get(7)*10.0;
                         let natoms = c.size()/3;
-                        let cif = cif_header(natoms, ux, uy, uz);
-                        for (let i = 0; i < natoms; i++) {
-                            let x = c.get(3*i) * 10.0;
-                            let y = c.get(3*i+1) * 10.0;
-                            let z = c.get(3*i+2) * 10.0;
-                            // Here only use the first char to represent element!!!
-                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i)[0], x/ux, y/uy, z/uz);
+                        let cif = "";
+                        let xyz = "";
+                        let ispbc = (ux>0 && uy>0 && uz>0);
+                        if (ispbc) {
+                            let crystal = triclinicToABC(ux, uy, uz, xy, xz, yz);
+                            cif = cif_header(natoms, crystal);
+                            let a_vec = [ux, 0, 0];
+                            let b_vec = [xy, uy, 0];
+                            let c_vec = [xz, yz, uz];
+                            for (let i = 0; i < natoms; i++) {
+                                let x = c.get(3*i) * 10.0;
+                                let y = c.get(3*i+1) * 10.0;
+                                let z = c.get(3*i+2) * 10.0;
+                                let [fx, fy, fz] = fracCoords(x, y, z, a_vec, b_vec, c_vec);
+                                // Here only use the first char to represent element!!!
+                                cif += sprintf("MOL %s %8.3f %8.3f %8.3f\n", name.get(i)[0], fx, fy, fz);
+                            }
+                        } 
+                        else {
+                            xyz += natoms + "\nMOL\n";
+                            for (let i = 0; i < natoms; i++) {
+                                let x = c.get(3*i) * 10.0;
+                                let y = c.get(3*i+1) * 10.0;
+                                let z = c.get(3*i+2) * 10.0;
+                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name.get(i)[0], x, y, z);
+                            }
                         }
-                        return {cif:cif, box:box};
+                        return {cif:cif, xyz:xyz, ispbc:ispbc};
                     }
 
-                    // convert gaussian binary chk file to cif text
+                    // convert gaussian binary chk file to cif & xyz text
                     async function readCHK(arrbuffer) {
                         let filename = "___temp.chk";
                         let module = await ChkModule();
-                        let stream = module.FS.open(filename, "w");
                         let uint8View = new Uint8Array(arrbuffer);
-                        module.FS.write(stream, uint8View, 0, uint8View.byteLength, 0);
-                        module.FS.close(stream);
+                        module.FS.writeFile(filename, uint8View);
                         let chk = new module.GauChkParserWarpper(filename);
                         let name = chk.get_name(); // element names
                         let c = chk.get_coords(); // coorrds, 3*natoms
                         chk.delete();
+                        module.FS.unlink(filename);
                         let natoms = c.size()/3;
-                        let ux = 1, uy = 1, uz = 1;
-                        let cif = cif_header(natoms, ux, uy, uz);
-                        for (let i = 0; i < natoms; i++) {
-                            let x = c.get(3*i);
-                            let y = c.get(3*i+1);
-                            let z = c.get(3*i+2);
-                            cif += sprintf("MOL %s %8.3f%8.3f%8.3f\n", name.get(i), x/ux, y/uy, z/uz);
+                        // TODO: get unit cell
+                        let ispbc = false; 
+                        let cif = "";
+                        let xyz = "";
+                        if (ispbc) {
+                            // TODO
+                            let ux = 1, uy = 1, uz = 1, xy = 0, xz = 0, yz = 0;
+                            let crystal = triclinicToABC(ux, uy, uz, xy, xz, yz);
+                            cif = cif_header(natoms, crystal);
+                            let a_vec = [ux, 0, 0];
+                            let b_vec = [xy, uy, 0];
+                            let c_vec = [xz, yz, uz];
+                            for (let i = 0; i < natoms; i++) {
+                                let x = c.get(3*i);
+                                let y = c.get(3*i+1);
+                                let z = c.get(3*i+2);
+                                let [fx, fy, fz] = fracCoords(x, y, z, a_vec, b_vec, c_vec);
+                                cif += sprintf("MOL %s %8.3f %8.3f %8.3f\n", name.get(i), fx, fy, fz);
+                            }
+                        } 
+                        else {
+                            xyz += natoms + "\nMOL\n";
+                            for (let i = 0; i < natoms; i++) {
+                                let x = c.get(3*i);
+                                let y = c.get(3*i+1);
+                                let z = c.get(3*i+2);
+                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name.get(i), x, y, z);
+                            }
                         }
-                        return {cif:cif};
+                        return {cif:cif, xyz:xyz, ispbc:ispbc};
                     }
 
                     function get_com(mol) {
@@ -256,12 +362,18 @@
                                 {
                                     case 'pdb':
                                         obj = ChemDoodle.readPDB(content);
+                                        loadMolNoPBC(obj);
+                                        alertMolecule();
                                         break;
                                     case 'xyz':
                                         obj = ChemDoodle.readXYZ(ltrim(content));
+                                        loadMolNoPBC(obj);
+                                        alertMolecule();
                                         break;
                                     case 'mol':
                                         obj = ChemDoodle.readMOL(content, 1);
+                                        loadMolNoPBC(obj);
+                                        alertMolecule();
                                         break;
                                     case 'chg':
                                         let nat = 0;
@@ -269,49 +381,37 @@
                                             if(line.match(/^[a-zA-Z)]/)) {nat += 1;}
                                         });
                                         obj = ChemDoodle.readXYZ(ltrim(nat+"\nMOL\n"+content));
+                                        loadMolNoPBC(obj);
+                                        alertMolecule();
                                         break;
                                     case 'tpr':
                                         readTpr(content).then(tpr => { 
-                                            obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
-                                            // correct box position? When has vapor region
-                                            // TODO: have issue
-                                            // {
-                                            //     let com = get_com(obj.molecule);
-                                            //     let dbox = [tpr.box.get(0)*5-com[0], 
-                                            //                 tpr.box.get(4)*5-com[1], 
-                                            //                 tpr.box.get(8)*5-com[2]];
-                                            //     let u = obj.unitCell.unitCell
-                                            //     for (let i = 0; i < 3; i++) {
-                                            //         u.o[i] += dbox[i];
-                                            //         u.x[i] += dbox[i];
-                                            //         u.y[i] += dbox[i];
-                                            //         u.z[i] += dbox[i];
-                                            //         u.xy[i] += dbox[i];
-                                            //         u.xz[i] += dbox[i];
-                                            //         u.yz[i] += dbox[i];
-                                            //         u.xyz[i] += dbox[i];
-                                            //     }
-                                            //     u = obj.unitCell.positionData;
-                                            //     for (let i = 0; i < 72; i+=3) {
-                                            //         u[i]   += dbox[0];
-                                            //         u[i+1] += dbox[1];
-                                            //         u[i+2] += dbox[2];
-                                            //     }
-                                            // }
-                                            addAtomSerial(obj.molecule);
-                                            Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                            if (tpr.ispbc) {
+                                                obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
+                                                addAtomSerial(obj.molecule);
+                                                Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                            }
+                                            else {
+                                                obj = ChemDoodle.readXYZ(ltrim(tpr.xyz));
+                                                loadMolNoPBC(obj);
+                                            }
                                             alertMolecule();
                                         });
-                                        return; // must return
+                                        break;
                                     case 'chk':
                                         readCHK(content).then(chk => { 
-                                            obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
-                                            addAtomSerial(obj.molecule);
-                                            // TODO: add unit cell???
-                                            Mol.loadContent([obj.molecule]);
+                                            if (chk.ispbc) {
+                                                obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
+                                                addAtomSerial(obj.molecule);
+                                                Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                            }
+                                            else {
+                                                obj = ChemDoodle.readXYZ(ltrim(chk.xyz));
+                                                loadMolNoPBC(obj);
+                                            }
                                             alertMolecule();
                                         });
-                                        return; // must return
+                                        break;
                                     case 'gro':
                                         let n=0;
                                         let coords = [], atoms = [];
@@ -331,14 +431,31 @@
                                                 n++;
                                             }
                                         });
-                                        // get gro box
+                                        // get gro box: v1(x) v2(y) v3(z) v1(y)=0 v1(z)=0 v2(x) v2(z)=0 v3(x) v3(y)
                                         let box = content.split('\n')[n+2].trim().split(/\s+/).map(f=>parseFloat(f)*10.0);
                                         let hasbox = (box[0]>0 && box[1]>0 && box[2]>0);
                                         // load gro to scene
                                         if (hasbox) {
-                                            let text = cif_header(coords.length, box[0], box[1], box[2]);
+                                            let crystal;
+                                            let a_vec, b_vec, c_vec;
+                                            if (box.length==3) {
+                                                crystal = triclinicToABC(box[0], box[1], box[2], 0, 0, 0);
+                                                a_vec = [box[0], 0, 0];
+                                                b_vec = [0, box[1], 0];
+                                                c_vec = [0, 0, box[2]];
+                                            } else if (box.length==9) {
+                                                crystal = triclinicToABC(box[0], box[1], box[2], box[5], box[7], box[8]);
+                                                a_vec = [box[0], 0, 0];
+                                                b_vec = [box[5], box[1], 0];
+                                                c_vec = [box[7], box[8], box[2]];
+                                            } else {
+                                                alert("Invalid gro box, should be 3 or 9 float numbers");
+                                                return;
+                                            }
+                                            let text = cif_header(coords.length, crystal);
                                             coords.forEach(function (c, index) {
-                                                text += "MOL " + atoms[index] + ' ' + c[0]/box[0] + ' ' + c[1]/box[1] + ' ' + c[2]/box[2] + '\n';
+                                                let [fx, fy, fz] = fracCoords(c[0], c[1], c[2], a_vec, b_vec, c_vec);
+                                                text += "MOL " + atoms[index] + ' ' + fx + ' ' + fy + ' ' + fz + '\n';
                                             });
                                             obj = ChemDoodle.readCIF(text, 1, 1, 1);
                                             addAtomSerial(obj.molecule); // must do it
@@ -348,20 +465,19 @@
                                             coords.forEach(function (c, index) {
                                                 text += atoms[index] + ' ' + c[0] + ' ' + c[1] + ' ' + c[2] + '\n';
                                             });
-                                            loadMol(ChemDoodle.readXYZ(ltrim(text)));
+                                            loadMolNoPBC(ChemDoodle.readXYZ(ltrim(text)));
                                         }
+                                        alertMolecule();
                                         break;
                                     default:
                                         alert('Unknown supported file format: ' + s);
                                         return;
                                 }
-                                
-                                // only for text files
-                                loadMol(obj);
-                                alertMolecule();
+
                                 // let rings = findRings(Mol.molecules[0])
                                 // alert("total rings: " + rings.length)
                             };
+
                             if (s == 'tpr' || s == 'chk') {
                                 // binary context
                                 r.readAsArrayBuffer(a);
@@ -387,7 +503,7 @@
                                     throw new Error('无法生成3D结构, 网络异常?');
                                 }
                                 const text = await response.text();
-                                loadMol(ChemDoodle.readMOL(text, 1));
+                                loadMolNoPBC(ChemDoodle.readMOL(text, 1));
                             } catch (error) {
                                 alert('无法生成3D结构: ' + error.message);
                             } finally {
@@ -406,7 +522,7 @@
                                 " "+mol.bonds.length+" "+" 0 0 0\nSMALL\nNO_CHARGES\n\n@<TRIPOS>ATOM\n";
                             let i = 1;
                             mol.atoms.forEach(function (atom) {
-                                context += sprintf("%-5s %s %8.3f%8.3f%8.3f %5s\n", String(i), atom.label+(i<10000? i:'X'), atom.x, atom.y, atom.z, atom.label);
+                                context += sprintf("%-5s %s %8.3f %8.3f %8.3f %5s\n", String(i), atom.label+(i<10000? i:'X'), atom.x, atom.y, atom.z, atom.label);
                                 i++;
                             });
                             // bonds
@@ -457,8 +573,8 @@
 
                 <div> 
                     <input type="checkbox" id="label" onChange="showlabel()" /> Label
-                    <input type="radio" name="style" id='CPK' checked="checked" onChange="setview(id)" /> CPK
-                    <input type="radio" name="style" id='Line' onChange="setview(id)" /> Line
+                    <input type="radio" name="style" id='Line' checked="checked" onChange="setview(id)" /> Line
+                    <input type="radio" name="style" id='CPK'  onChange="setview(id)" /> CPK
                     <input type="radio" name="style" id='vdW' onChange="setview(id)" /> vdW
                     <input type="radio" name="style" id='Stick' onChange="setview(id)" /> Stick
                     <input type="radio" name="style" id='Wireframe' onChange="setview(id)" /> Wire
