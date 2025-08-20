@@ -575,7 +575,8 @@
                             mol.bonds.forEach(function (bond) {
                                 let a1 = g_lab2ids.get(bond.a1.altLabel)+1;
                                 let a2 = g_lab2ids.get(bond.a2.altLabel)+1;
-                                context += sprintf("%-5s %5s %5s %5s\n", String(i), String(a1), String(a2), String(bond.bondOrder));
+                                let order = (bond.bondOrder==1.5? "ar" : String(bond.bondOrder)); // fix 1.5 
+                                context += sprintf("%-5s %5s %5s %5s\n", String(i), String(a1), String(a2), order);
                                 i++;
                             });
                             download(context, "mol.mol2");
