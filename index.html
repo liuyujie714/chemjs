@@ -21,11 +21,27 @@
     <table>
         <tr>
             <td>
-                <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr, .chk" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
+                <div style="display: flex;">
+                    <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr, .chk" style="font-size:1em;font-weight:bold;color:red;width:200px; height:30px" />
+                    <input type="text" id="inputsmiles" style="font-size:1em;font-weight:normal;color:black;width:200px; height:20px"/>
+                </div>
+                <script>
+                    var $ = function(id) { return document.getElementById(id); }
+                    
+                    $("inputsmiles").addEventListener("keydown", function(e) {
+                        if (e.keyCode == 13) {
+                            e.preventDefault();
+                            const value = $("inputsmiles").value.trim();
+                            if (value) {
+                                molFromSmiles(value);
+                            }
+                        }
+                    })
+                </script>
             </td>
             <td>
                 <div style="display: flex;">
-                    <input type="button" id="import3d" onclick="molFromSmile()" value="=>从画板导入3D分子" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px;margin-right: 20px;" />
+                    <input type="button" id="import3d" onclick="molFromSketch()" value="=>从画板导入3D分子" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px;margin-right: 20px;" />
                     <input type="button" id="savefile" onclick="savefile()" value="导出3D分子" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
                 </div>
             </td>
@@ -100,7 +116,6 @@
                     });
                     Mol.startAnimation(); // 开始动画
 
-                    var $ = function(id) { return document.getElementById(id); }
                     function alertMolecule() {
                         let message = 'This molecule contains ' + Mol.molecules[0].atoms.length + ' atoms and ' + Mol.molecules[0].bonds.length + ' bonds.';
                         alert(message);
@@ -490,42 +505,43 @@
                     }
 
                     // import molecule from sketcher
-                    async function molFromSmile() {
-                        console.time("molFromSmile");
-                        const b = $("import3d"); 
+                    async function molFromSketch() {
+                        const b = $("import3d");
+                        b.disabled = true; // 禁用按钮
                         if (s = jme._getSmiles()) {
-                            b.disabled = true; // 禁用按钮
-                            Mol.stopAnimation(); //  停止动画
-                            // try {
-                            //     const url = "https://cactus.nci.nih.gov/chemical/structure/" + 
-                            //                 s.replace(/#/g, "%23").replace(/\\/g, "%5C") + 
-                            //                 "/file?format=mol&get3d=True";
-                            //     const response = await fetch(url);
-                            //     if (!response.ok) {
-                            //         throw new Error('无法生成3D结构, 网络异常?');
-                            //     }
-                            //     const text = await response.text();
-                            //     loadMolNoPBC(ChemDoodle.readMOL(text, 1));
-                            // } catch (error) {
-                            //     alert('无法生成3D结构: ' + error.message);
-                            // } finally {
-                            //     b.disabled = false; // 无论成功与否，最终恢复按钮
-                            // }
-                            // use rdkit is more good
-                            try {
-                                let module = await RDKitModule();
-                                let rdkit = new module.Smiles2Mol(s);
-                                let text = rdkit.get_pdb_content();
-                                loadMolNoPBC(ChemDoodle.readPDB(text));
-                            } catch (error) {
-                                alert('无法通过RDkit生成3D结构: ' + error.message);
-                            } finally {
-                                b.disabled = false; // 无论成功与否，最终恢复按钮
-                            }
+                            molFromSmiles(s);
                         } else {
-                            alert("错误! 画板中没有分子")
+                            alert("错误! 画板中没有分子");
                         }
-                        console.timeEnd("molFromSmile");
+                        b.disabled = false; // 无论成功与否，最终恢复按钮
+                    }
+
+                    // generate 3D molecule from smiles
+                    async function molFromSmiles(s) { 
+                        Mol.stopAnimation(); //  停止动画
+                        // try {
+                        //     const url = "https://cactus.nci.nih.gov/chemical/structure/" + 
+                        //                 s.replace(/#/g, "%23").replace(/\\/g, "%5C") + 
+                        //                 "/file?format=mol&get3d=True";
+                        //     const response = await fetch(url);
+                        //     if (!response.ok) {
+                        //         throw new Error('无法生成3D结构, 网络异常?');
+                        //     }
+                        //     const text = await response.text();
+                        //     loadMolNoPBC(ChemDoodle.readMOL(text, 1));
+                        // } catch (error) {
+                        //     alert('无法生成3D结构: ' + error.message);
+                        // }
+                        // use rdkit is more good
+                        try {
+                            let module = await RDKitModule();
+                            let rdkit = new module.Smiles2Mol(s);
+                            let text = rdkit.get_pdb_content();
+                            loadMolNoPBC(ChemDoodle.readPDB(text));
+                            $('inputsmiles').value = s;
+                        } catch (error) {
+                            alert('无法通过RDkit对Smiles: "' + s + '" 生成3D结构');
+                        }
                     }
 
                     // save mol2 file
