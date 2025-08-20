@@ -514,12 +514,18 @@
                     async function molFromSketch() {
                         const b = $("import3d");
                         b.disabled = true; // 禁用按钮
-                        if (s = jme._getSmiles()) {
-                            molFromSmiles(s);
-                        } else {
-                            alert("错误! 画板中没有分子");
+
+                        try {
+                            if (s = jme._getSmiles()) {
+                                await molFromSmiles(s);
+                            } else {
+                                alert("错误! 画板中没有分子");
+                            }
+                        } catch (error) {
+                            alert("导入3D分子失败: " + error);
+                        } finally {
+                            b.disabled = false; // 总是启用按钮
                         }
-                        b.disabled = false; // 无论成功与否，最终恢复按钮
                     }
 
                     // generate 3D molecule from smiles
@@ -538,7 +544,7 @@
                         // } catch (error) {
                         //     alert('无法生成3D结构: ' + error.message);
                         // }
-                        // use rdkit is more good
+                        // use rdkit is more good and faster
                         try {
                             let module = await RDKitModule();
                             let rdkit = new module.Smiles2Mol(s);
