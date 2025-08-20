@@ -5,6 +5,7 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgauchk.js"></script>
+        <script src="./js/libsimles2mol.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
@@ -490,28 +491,41 @@
 
                     // import molecule from sketcher
                     async function molFromSmile() {
+                        console.time("molFromSmile");
                         const b = $("import3d"); 
                         if (s = jme._getSmiles()) {
                             b.disabled = true; // 禁用按钮
                             Mol.stopAnimation(); //  停止动画
+                            // try {
+                            //     const url = "https://cactus.nci.nih.gov/chemical/structure/" + 
+                            //                 s.replace(/#/g, "%23").replace(/\\/g, "%5C") + 
+                            //                 "/file?format=mol&get3d=True";
+                            //     const response = await fetch(url);
+                            //     if (!response.ok) {
+                            //         throw new Error('无法生成3D结构, 网络异常?');
+                            //     }
+                            //     const text = await response.text();
+                            //     loadMolNoPBC(ChemDoodle.readMOL(text, 1));
+                            // } catch (error) {
+                            //     alert('无法生成3D结构: ' + error.message);
+                            // } finally {
+                            //     b.disabled = false; // 无论成功与否，最终恢复按钮
+                            // }
+                            // use rdkit is more good
                             try {
-                                const url = "https://cactus.nci.nih.gov/chemical/structure/" + 
-                                            s.replace(/#/g, "%23").replace(/\\/g, "%5C") + 
-                                            "/file?format=mol&get3d=True";
-                                const response = await fetch(url);
-                                if (!response.ok) {
-                                    throw new Error('无法生成3D结构, 网络异常?');
-                                }
-                                const text = await response.text();
-                                loadMolNoPBC(ChemDoodle.readMOL(text, 1));
+                                let module = await RDKitModule();
+                                let rdkit = new module.Smiles2Mol(s);
+                                let text = rdkit.get_pdb_content();
+                                loadMolNoPBC(ChemDoodle.readPDB(text));
                             } catch (error) {
-                                alert('无法生成3D结构: ' + error.message);
+                                alert('无法通过RDkit生成3D结构: ' + error.message);
                             } finally {
                                 b.disabled = false; // 无论成功与否，最终恢复按钮
                             }
                         } else {
                             alert("错误! 画板中没有分子")
                         }
+                        console.timeEnd("molFromSmile");
                     }
 
                     // save mol2 file
