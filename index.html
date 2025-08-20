@@ -5,7 +5,7 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgauchk.js"></script>
-        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libsimles2mol.js"></script>
+        <script src="./js/cpp/libsimles2mol.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
@@ -22,7 +22,7 @@
         <tr>
             <td>
                 <div style="display: flex;">
-                    <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .chg, .xyz, .gro, .tpr, .chk" style="font-size:1em;font-weight:bold;color:red;width:200px; height:30px" />
+                    <input type="file" id="loadfile" value="读取文件" accept=".pdb, .mol, .cml, .chg, .xyz, .gro, .tpr, .chk" style="font-size:1em;font-weight:bold;color:red;width:200px; height:30px" />
                     <input type="text" id="inputsmiles" style="font-size:1em;font-weight:normal;color:black;width:200px; height:20px"/>
                 </div>
                 <script>
@@ -391,6 +391,12 @@
                                         loadMolNoPBC(obj);
                                         alertMolecule();
                                         break;
+                                    case 'cml':
+                                        // only one molecule!!
+                                        obj = ChemDoodle.readCML(content)[0];
+                                        loadMolNoPBC(obj);
+                                        alertMolecule();
+                                        break;
                                     case 'chg':
                                         let nat = 0;
                                         content.split('\n').forEach(function (line) {
@@ -536,8 +542,10 @@
                         try {
                             let module = await RDKitModule();
                             let rdkit = new module.Smiles2Mol(s);
-                            let text = rdkit.get_pdb_content();
-                            loadMolNoPBC(ChemDoodle.readPDB(text));
+                            let text = rdkit.get_cml_content();
+                            loadMolNoPBC(ChemDoodle.readCML(text)[0]);
+                            // let text = rdkit.get_pdb_content();
+                            // loadMolNoPBC(ChemDoodle.readPDB(text));
                             $('inputsmiles').value = s;
                         } catch (error) {
                             alert('无法通过RDkit对Smiles: "' + s + '" 生成3D结构');

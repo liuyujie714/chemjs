@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cml xmlns="http://www.xml-cml.org/schema" xmlns:convention="http://www.xml-cml.org/convention/" convention="convention:molecular">
+  <molecule id="m-1" formalCharge="0" spinMultiplicity="1">
+    <atomArray>
+      <atom id="a0" elementType="C" formalCharge="0" hydrogenCount="1" x3="1.134160" y3="-0.810615" z3="-0.046060"/>
+      <atom id="a1" elementType="C" formalCharge="0" hydrogenCount="1" x3="1.268379" y3="0.577710" z3="-0.054807"/>
+      <atom id="a2" elementType="C" formalCharge="0" hydrogenCount="1" x3="0.134219" y3="1.388326" z3="-0.008747"/>
+      <atom id="a3" elementType="C" formalCharge="0" hydrogenCount="1" x3="-1.134160" y3="0.810616" z3="0.046061"/>
+      <atom id="a4" elementType="C" formalCharge="0" hydrogenCount="1" x3="-1.268379" y3="-0.577710" z3="0.054808"/>
+      <atom id="a5" elementType="C" formalCharge="0" hydrogenCount="1" x3="-0.134219" y3="-1.388325" z3="0.008748"/>
+      <atom id="a6" elementType="H" formalCharge="0" hydrogenCount="0" x3="2.017804" y3="-1.442175" z3="-0.081947"/>
+      <atom id="a7" elementType="H" formalCharge="0" hydrogenCount="0" x3="2.256594" y3="1.027809" z3="-0.097507"/>
+      <atom id="a8" elementType="H" formalCharge="0" hydrogenCount="0" x3="0.238789" y3="2.469991" z3="-0.015564"/>
+      <atom id="a9" elementType="H" formalCharge="0" hydrogenCount="0" x3="-2.017801" y3="1.442180" z3="0.081944"/>
+      <atom id="a10" elementType="H" formalCharge="0" hydrogenCount="0" x3="-2.256591" y3="-1.027816" z3="0.097509"/>
+      <atom id="a11" elementType="H" formalCharge="0" hydrogenCount="0" x3="-0.238794" y3="-2.469991" z3="0.015561"/>
+    </atomArray>
+    <bondArray>
+      <bond atomRefs2="a0 a1" id="b0" order="D"/>
+      <bond atomRefs2="a0 a5" id="b1" order="S"/>
+      <bond atomRefs2="a0 a6" id="b2" order="S"/>
+      <bond atomRefs2="a1 a2" id="b3" order="S"/>
+      <bond atomRefs2="a1 a7" id="b4" order="S"/>
+      <bond atomRefs2="a2 a3" id="b5" order="D"/>
+      <bond atomRefs2="a2 a8" id="b6" order="S"/>
+      <bond atomRefs2="a3 a4" id="b7" order="S"/>
+      <bond atomRefs2="a3 a9" id="b8" order="S"/>
+      <bond atomRefs2="a4 a5" id="b9" order="D"/>
+      <bond atomRefs2="a4 a10" id="b10" order="S"/>
+      <bond atomRefs2="a5 a11" id="b11" order="S"/>
+    </bondArray>
+  </molecule>
+</cml>
