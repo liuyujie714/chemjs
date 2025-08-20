@@ -5,7 +5,7 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libgauchk.js"></script>
-        <script src="./js/libsimles2mol.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/libsimles2mol.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
@@ -31,7 +31,7 @@
                     $("inputsmiles").addEventListener("keydown", function(e) {
                         if (e.keyCode == 13) {
                             e.preventDefault();
-                            const value = $("inputsmiles").value.trim();
+                            const value = this.value.trim();
                             if (value) {
                                 molFromSmiles(value);
                             }
