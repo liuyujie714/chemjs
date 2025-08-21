@@ -383,7 +383,12 @@
                                         content.split('\n').forEach(function (line) {
                                             if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
                                                 natoms++;
-                                                let name = line.substring(12, 16).trim();
+                                                // must remove number in str
+                                                let name = line.substring(12, 16).trim().replace(/\d/g, '');
+                                                // fix OW and HW
+                                                if (name.substring(0, 2).toUpperCase()=='HW' || name.substring(0, 2).toUpperCase()=='OW') {
+                                                    name = name[0];
+                                                }
                                                 let x = parseFloat(line.substring(30, 38));
                                                 let y = parseFloat(line.substring(38, 46));
                                                 let z = parseFloat(line.substring(46, 54));
