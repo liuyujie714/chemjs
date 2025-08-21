@@ -377,8 +377,20 @@
                                 switch(s)
                                 {
                                     case 'pdb':
-                                        obj = ChemDoodle.readPDB(content);
-                                        loadMolNoPBC(obj);
+                                        // obj = ChemDoodle.readPDB(content); // the method is not work for non-standard pdb file
+                                        let xyz = "", natoms = 0;
+                                        // TODO: parser CRYST1 & CONECT
+                                        content.split('\n').forEach(function (line) {
+                                            if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
+                                                natoms++;
+                                                let name = line.substring(12, 16).trim();
+                                                let x = parseFloat(line.substring(30, 38));
+                                                let y = parseFloat(line.substring(38, 46));
+                                                let z = parseFloat(line.substring(46, 54));
+                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name, x, y, z);
+                                            }
+                                        })
+                                        loadMolNoPBC(ChemDoodle.readXYZ(ltrim(natoms+"\nMOL\n"+xyz)));
                                         alertMolecule();
                                         break;
                                     case 'xyz':
