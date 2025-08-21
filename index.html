@@ -409,6 +409,17 @@
                                         alertMolecule();
                                         break;
                                     case 'cml':
+                                        // fix non-standard CML, molecule must between <cml> and </cml>
+                                        let hascml = (content.lastIndexOf('</cml>')!=-1);
+                                        if (!hascml) {
+                                            if (content.indexOf('<molecule')!=-1 && content.indexOf('</molecule>')!=-1) {
+                                                content = content.replace('<molecule', '<cml>\n<molecule');
+                                                content = content.replace('</molecule>', '</molecule>\n</cml>');
+                                            } else {
+                                                alert('No molecule found in the cml file.');
+                                                return;
+                                            }
+                                        }
                                         // only one molecule!!
                                         obj = ChemDoodle.readCML(content)[0];
                                         loadMolNoPBC(obj);
