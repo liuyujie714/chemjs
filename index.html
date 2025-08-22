@@ -256,6 +256,31 @@
                         "\nloop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n";
                     }
 
+                    // convert atomname to correct element name, trim start & end space, fix number
+                    function fix_atomname(name) {
+                        // exclude such as H111R
+                        name = name.trim();
+                        // trim started number
+                        if((pos = name.search(/\d/))==0) {
+                            name = name.substring(pos+1);
+                        }
+                        pos = name.search(/\d/);
+                        if (pos != -1) {
+                            name = name.substring(0, pos);
+                        }
+                        // H* -> H element
+                        if (name.startsWith('H')) {
+                            name = name[0];
+                        }
+                        // fix some special metal atom names
+                        ['FE', 'ZN', 'CU', "CO", 'MG', 'AU', 'AG', 'AL', "SI", 'CL', "LI", "PT"].forEach(e => { 
+                            if (name.startsWith(e)) {
+                                name = name[0].toUpperCase() + (name.length>1? name[1].toLowerCase() : '')
+                            }
+                        })
+                        return name;
+                    }
+
                     // convert gromacs tpr binary stream to cif & xyz text
                     async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
@@ -384,7 +409,7 @@
                                             if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
                                                 natoms++;
                                                 // must remove number in str
-                                                let name = line.substring(12, 16).trim().replace(/\d/g, '');
+                                                let name = line.substring(12, 16).trim();
                                                 // fix OW and HW
                                                 if (name.substring(0, 2).toUpperCase()=='HW' || name.substring(0, 2).toUpperCase()=='OW') {
                                                     name = name[0];
@@ -392,7 +417,7 @@
                                                 let x = parseFloat(line.substring(30, 38));
                                                 let y = parseFloat(line.substring(38, 46));
                                                 let z = parseFloat(line.substring(46, 54));
-                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name, x, y, z);
+                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", fix_atomname(name), x, y, z);
                                             }
                                         })
                                         loadMolNoPBC(ChemDoodle.readXYZ(ltrim(natoms+"\nMOL\n"+xyz)));
