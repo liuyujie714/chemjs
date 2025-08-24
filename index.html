@@ -6,6 +6,7 @@
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgauchk.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libsimles2mol.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libfindbonds.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/uis/jquery-ui-1.10.3.custom.css" type="text/css">
@@ -78,10 +79,34 @@
                         }
                     }
 
-                    // add atom serial and loadMolecule (without pbc)
+                    // set atom & bond resolution, input: number of atoms
+                    function set_resolution(nat) { 
+                        let res = 30;
+                        if (nat<5000) {
+                            res = 30;
+                        } else if (nat<50000) {
+                            res = 20;
+                        } else if (nat<100000) {
+                            res = 10;
+                        } else {
+                            res = 5;
+                        }
+                        Mol.specs.atoms_resolution_3D = res;
+                        Mol.specs.bonds_resolution_3D = res;
+                    }
+
+                    // add atom serial and loadMolecule (without pbc) and set resolution
                     function loadMolNoPBC(mol) { 
+                        set_resolution(mol.atoms.length);
                         addAtomSerial(mol)
                         Mol.loadMolecule(mol);
+                    }
+
+                    // add atom serial and loadContent (pbc) and set resolution
+                    function loadMolPBC(obj) { 
+                        set_resolution(obj.molecule.atoms.length);
+                        addAtomSerial(obj.molecule);
+                        Mol.loadContent([obj.molecule], [obj.unitCell]);
                     }
 
                     // 分子显示
@@ -272,6 +297,12 @@
                         if (name.startsWith('H')) {
                             name = name[0];
                         }
+                        // fix OW and HW
+                        if (name.substring(0, 2).toUpperCase()=='HW' || 
+                            name.substring(0, 2).toUpperCase()=='OW' || 
+                            name.substring(0, 2).toUpperCase()=='OH') {
+                            name = name[0];
+                        }
                         // fix some special metal atom names
                         ['FE', 'ZN', 'CU', "CO", 'MG', 'AU', 'AG', 'AL', "SI", 'CL', "LI", "PT"].forEach(e => { 
                             if (name.startsWith(e)) {
@@ -387,11 +418,77 @@
                         return com;
                     }
 
+                    
+                    // fast find atom bonds based distance, return Array(atom_index, atom_index, distance)
+                    async function find_bonds(names, positions, box) {
+                        let module = await FindBondsModule();
+                        // use c++ vector
+                        const cnames = new module.VecString();
+                        const cpositions = new module.VecFloat();
+                        const cbox = new module.VecFloat();
+                        // copy data
+                        names.forEach(name => cnames.push_back(name));
+                        positions.forEach(pos => cpositions.push_back(pos));
+                        box.forEach(f => cbox.push_back(f));
+                        // convert result to js array
+                        bonds = module.find_bonds(cnames, cpositions, cbox, true);
+                        jsbonds = [];
+                        for (i=0; i<bonds.size(); i++) {
+                            let bond = bonds.get(i);
+                            jsbonds.push([bond.i, bond.j, bond.d]);
+                        }
+                        // free vector memory
+                        cnames.delete();
+                        cpositions.delete();
+                        cbox.delete();
+                        bonds.delete();
+
+                        return jsbonds;
+                    }
+
+                    // A more efficient way to read the xyz file, ignoring bondorder
+                    async function readXYZFast(names, positions, box, xyzString) {
+                        function XYZInterpreter() {}
+                        XYZInterpreter.prototype = new ChemDoodle.io._Interpreter();
+                        XYZInterpreter.prototype.deduceCovalentBonds = false;
+                        XYZInterpreter.prototype.read = async function(a) {
+                            const molecule = new ChemDoodle.structures.Molecule();
+                            if (!a) return molecule;
+
+                            const lines = a.split("\n");
+                            const atomCount = parseInt(ChemDoodle.lib.jQuery.trim(lines[0]));
+
+                            for (let i = 0; i < atomCount; i++) {
+                                const tokens = lines[i + 2].split(/\s+/g);
+                                molecule.atoms[i] = new ChemDoodle.structures.Atom(
+                                    isNaN(tokens[0]) ? tokens[0] : ChemDoodle.SYMBOLS[parseInt(tokens[0]) - 1],
+                                    parseFloat(tokens[1]),
+                                    parseFloat(tokens[2]),
+                                    parseFloat(tokens[3])
+                                );
+                            }
+
+                            //(new ChemDoodle.informatics.BondDeducer()).deduceCovalentBonds(molecule, 1);
+                            let bondorder = 1;
+                            const bonds = await find_bonds(names, positions, box);
+                            bonds.forEach(b=> {
+                                molecule.bonds.push(new ChemDoodle.structures.Bond(molecule.atoms[b[0]], molecule.atoms[b[1]], bondorder));
+                            })
+
+                            return molecule;
+                        };
+
+                        // 创建实例并调用 read 方法
+                        const interpreter = new XYZInterpreter();
+                        return interpreter.read(xyzString);
+                    }
+
                     function loadfile(t) {
                         let a=t.target.files[0];
                         if(a) {
                             // 停止动画
                             Mol.stopAnimation();
+                            set_resolution(0); // keep good resolution
 
                             let r=new FileReader;
                             let s = extension(a.name);
@@ -399,6 +496,8 @@
                             r.onload=function(t) {
                                 content=t.target.result;
                                 let obj;
+                                let names = [], positions = [], box = [];
+                                let nobox = [0,0,0,0,0,0,0,0,0];
                                 switch(s)
                                 {
                                     case 'pdb':
@@ -409,19 +508,20 @@
                                             if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
                                                 natoms++;
                                                 // must remove number in str
-                                                let name = line.substring(12, 16).trim();
-                                                // fix OW and HW
-                                                if (name.substring(0, 2).toUpperCase()=='HW' || name.substring(0, 2).toUpperCase()=='OW') {
-                                                    name = name[0];
-                                                }
+                                                name = fix_atomname(line.substring(12, 16));
                                                 let x = parseFloat(line.substring(30, 38));
                                                 let y = parseFloat(line.substring(38, 46));
                                                 let z = parseFloat(line.substring(46, 54));
-                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", fix_atomname(name), x, y, z);
+                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name, x, y, z);
+
+                                                names.push(name);
+                                                positions.push(x, y, z);
                                             }
                                         })
-                                        loadMolNoPBC(ChemDoodle.readXYZ(ltrim(natoms+"\nMOL\n"+xyz)));
-                                        alertMolecule();
+                                        readXYZFast(names, positions, nobox, natoms+"\nMOL\n"+xyz).then(obj => {
+                                            loadMolNoPBC(obj);
+                                            alertMolecule();
+                                        })
                                         break;
                                     case 'xyz':
                                         obj = ChemDoodle.readXYZ(ltrim(content));
@@ -463,8 +563,7 @@
                                         readTpr(content).then(tpr => { 
                                             if (tpr.ispbc) {
                                                 obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
-                                                addAtomSerial(obj.molecule);
-                                                Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                                loadMolPBC(obj);
                                             }
                                             else {
                                                 obj = ChemDoodle.readXYZ(ltrim(tpr.xyz));
@@ -477,8 +576,7 @@
                                         readCHK(content).then(chk => { 
                                             if (chk.ispbc) {
                                                 obj = ChemDoodle.readCIF(chk.cif, 1, 1, 1);
-                                                addAtomSerial(obj.molecule);
-                                                Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                                loadMolPBC(obj);
                                             }
                                             else {
                                                 obj = ChemDoodle.readXYZ(ltrim(chk.xyz));
@@ -489,20 +587,14 @@
                                         break;
                                     case 'gro':
                                         let n=0;
-                                        let coords = [], atoms = [];
                                         content.split('\n').forEach(function (line, index) {
                                             if (index>=2 && /[a-zA-Z]/.test(line)) {
-                                                let atom = line.substring(10, 15).trim().replace(/\d/g, '');
-                                                // process HW or OW
-                                                if (atom.substring(0, 2).toUpperCase()=='HW' || atom.substring(0, 2).toUpperCase()=='OW') {
-                                                    atom = atom[0];
-                                                }
-                                                atoms.push(atom);
+                                                names.push(fix_atomname(line.substring(10, 15)));
 
                                                 let x = parseFloat(line.substring(20, 28).trim()) * 10.0;
                                                 let y = parseFloat(line.substring(28, 36).trim()) * 10.0;
                                                 let z = parseFloat(line.substring(36, 44).trim()) * 10.0;
-                                                coords.push([x, y, z]);
+                                                positions.push([x, y, z]);
                                                 n++;
                                             }
                                         });
@@ -527,18 +619,17 @@
                                                 alert("Invalid gro box, should be 3 or 9 float numbers");
                                                 return;
                                             }
-                                            let text = cif_header(coords.length, crystal);
-                                            coords.forEach(function (c, index) {
+                                            let text = cif_header(positions.length, crystal);
+                                            positions.forEach(function (c, index) {
                                                 let [fx, fy, fz] = fracCoords(c[0], c[1], c[2], a_vec, b_vec, c_vec);
-                                                text += "MOL " + atoms[index] + ' ' + fx + ' ' + fy + ' ' + fz + '\n';
+                                                text += "MOL " + names[index] + ' ' + fx + ' ' + fy + ' ' + fz + '\n';
                                             });
                                             obj = ChemDoodle.readCIF(text, 1, 1, 1);
-                                            addAtomSerial(obj.molecule); // must do it
-                                            Mol.loadContent([obj.molecule], [obj.unitCell]);
+                                            loadMolPBC(obj);
                                         } else {
-                                            let text = coords.length + "\nMOL\n";
-                                            coords.forEach(function (c, index) {
-                                                text += atoms[index] + ' ' + c[0] + ' ' + c[1] + ' ' + c[2] + '\n';
+                                            let text = positions.length + "\nMOL\n";
+                                            positions.forEach(function (c, index) {
+                                                text += names[index] + ' ' + c[0] + ' ' + c[1] + ' ' + c[2] + '\n';
                                             });
                                             loadMolNoPBC(ChemDoodle.readXYZ(ltrim(text)));
                                         }
