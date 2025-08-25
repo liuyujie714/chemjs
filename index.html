@@ -14,11 +14,47 @@
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/jsmol/JSmol.min.js"></script>
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/jsmol/JSmolJME.js"></script>
-        <script type="text/javascript" language="javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/jsmol/jsme/jsme/jsme.nocache.js"></script>
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/jsmol/jsme/jsme/jsme.nocache.js"></script>
         <title>分子可视化</title>
     </head>
     
     <div class="wrap">
+
+    <div style="position: fixed; right: 40px; top: 10px; width: 150px; font-size: 12px;">
+        <div style="cursor: pointer; font-weight: bold;" onclick="toggleHelp()">
+            Help ▶
+        </div>
+        <div id="help" style="margin-top: 0.5rem; display: none;">
+            电脑端:<br>
+            Ctrl+Z: 撤销绘制操作<br>
+            鼠标左键: 旋转分子<br>
+            Alt+鼠标左键: 移动分子<br>
+            鼠标滚轮: 缩放分子<br>
+            <br>
+            手机端:<br>
+            单指拖动：旋转分子<br>
+            双指拖动：移动分子<br>
+            双指缩放：缩放分子<br>
+            <br>
+            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键目前都是基于距离搜索进行判定的，大体系下pdb格式读取速度最快，因为该部分基于C++代码。
+        </div>
+
+        <script>
+            function toggleHelp() {
+                const content = document.getElementById('help');
+                const arrow = document.querySelector('div[onclick="toggleHelp()"]');
+                
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    arrow.innerHTML = 'Help ▼';
+                } else {
+                    content.style.display = 'none';
+                    arrow.innerHTML = 'Help ▶';
+                }
+            }
+            </script>
+    </div>
+    
     <table>
         <tr>
             <td>
@@ -212,6 +248,7 @@
 
                     function extension(t) {return t.substring(t.lastIndexOf(".")+1).toLowerCase()}
 
+                    // convert the three triclinic box vectors to pdb cryst1
                     function triclinicToABC(lx, ly, lz, xy, xz, yz) {
                         const a = [lx, 0, 0];
                         const b = [xy, ly, 0];
@@ -230,6 +267,58 @@
 
                         return { a: na, b: nb, c: nc, alpha, beta, gamma };
                     }
+
+                    // Convert [lx, ly, lz, alpha, beta, gamma] to a triclinic 3x3 matrix (flattened).
+                    function ABCTotriclinic(dimensions) {
+                        let [lx, ly, lz, alpha, beta, gamma] = dimensions.map(Number);
+                        const zerobox = [0,0,0,0,0,0,0,0,0];
+
+                        // Only positive edge lengths and angles in (0, 180) are allowed
+                        if (!(lx > 0 && ly > 0 && lz > 0 &&
+                            alpha > 0 && alpha < 180 &&
+                            beta > 0 && beta < 180 &&
+                            gamma > 0 && gamma < 180)) {
+                            return zerobox;
+                        }
+
+                        // detect orthogonal boxes
+                        if (alpha === 90 && beta === 90 && gamma === 90) {
+                            return [
+                                lx, 0, 0,
+                                0, ly, 0,
+                                0, 0, lz
+                            ];
+                        }
+
+                        // general triclinic box
+                        const deg2rad = d => d * Math.PI / 180;
+
+                        let cosAlpha = (alpha === 90) ? 0 : Math.cos(deg2rad(alpha));
+                        let cosBeta  = (beta  === 90) ? 0 : Math.cos(deg2rad(beta));
+                        let cosGamma, sinGamma;
+                        if (gamma === 90) {
+                            cosGamma = 0;
+                            sinGamma = 1;
+                        } else {
+                            const g = deg2rad(gamma);
+                            cosGamma = Math.cos(g);
+                            sinGamma = Math.sin(g);
+                        }
+
+                        const m = [
+                            [lx, 0, 0],
+                            [ly * cosGamma, ly * sinGamma, 0],
+                            [0, 0, 0]
+                        ];
+
+                        m[2][0] = lz * cosBeta;
+                        m[2][1] = lz * (cosAlpha - cosBeta * cosGamma) / sinGamma;
+                        const z2 = lz * lz - m[2][0]**2 - m[2][1]**2;
+                        m[2][2] = z2 > 0 ? Math.sqrt(z2) : 0;
+
+                        return m[2][2] <= 0? zerobox : m.flat();
+                    }
+
 
                     // convert cartesian to fractional
                     function fracCoords(x, y, z, a_vec, b_vec, c_vec) {
@@ -419,7 +508,7 @@
                     }
 
                     
-                    // fast find atom bonds based distance, return Array(atom_index, atom_index, distance)
+                    // fast find atom bonds based distance, return Array(atom1, atom2, distance)
                     async function find_bonds(names, positions, box) {
                         let module = await FindBondsModule();
                         // use c++ vector
@@ -433,7 +522,7 @@
                         // convert result to js array
                         bonds = module.find_bonds(cnames, cpositions, cbox, true);
                         jsbonds = [];
-                        for (i=0; i<bonds.size(); i++) {
+                        for (let i=0; i<bonds.size(); i++) {
                             let bond = bonds.get(i);
                             jsbonds.push([bond.i, bond.j, bond.d]);
                         }
@@ -447,7 +536,21 @@
                     }
 
                     // A more efficient way to read the xyz file, ignoring bondorder
-                    async function readXYZFast(names, positions, box, xyzString) {
+                    async function readXYZFast(names, positions, box) {
+                        // check input
+                        if (names.length != positions.length/3) {
+                            throw new Error("The number of atom names does not equal to the number of atom positions");
+                        }
+                        if (box.length != 9) {
+                            throw new Error("The box size is not 9");
+                        }
+
+                        // convert xyz str
+                        let xyzstr = names.length + '\nMOL\n';
+                        for (let i = 0; i < names.length; i++) {
+                            xyzstr += sprintf("%s %8.3f %8.3f %8.3f\n", names[i], positions[3*i], positions[3*i+1], positions[3*i+2]);
+                        }
+
                         function XYZInterpreter() {}
                         XYZInterpreter.prototype = new ChemDoodle.io._Interpreter();
                         XYZInterpreter.prototype.deduceCovalentBonds = false;
@@ -456,9 +559,9 @@
                             if (!a) return molecule;
 
                             const lines = a.split("\n");
-                            const atomCount = parseInt(ChemDoodle.lib.jQuery.trim(lines[0]));
+                            const natoms = parseInt(ChemDoodle.lib.jQuery.trim(lines[0]));
 
-                            for (let i = 0; i < atomCount; i++) {
+                            for (let i = 0; i < natoms; i++) {
                                 const tokens = lines[i + 2].split(/\s+/g);
                                 molecule.atoms[i] = new ChemDoodle.structures.Atom(
                                     isNaN(tokens[0]) ? tokens[0] : ChemDoodle.SYMBOLS[parseInt(tokens[0]) - 1],
@@ -480,7 +583,25 @@
 
                         // 创建实例并调用 read 方法
                         const interpreter = new XYZInterpreter();
-                        return interpreter.read(xyzString);
+                        return interpreter.read(ltrim(xyzstr));
+                    }
+
+                    // build cell from gmx box (1D, 9 values)
+                    function build_cell_from_gmxbox(mol, box) {
+                        const a = [box[0], box[1], box[2]];
+                        const b = [box[3], box[4], box[5]];
+                        const c = [box[6], box[7], box[8]];
+                        const center = mol.getCenter3D(); // molecule center in Atom
+                        const origin = [-center.x, -center.y,-center.z];
+                        const o = origin;
+                        const x   = [origin[0] + a[0], origin[1] + a[1], origin[2] + a[2]];
+                        const y   = [origin[0] + b[0], origin[1] + b[1], origin[2] + b[2]];
+                        const z   = [origin[0] + c[0], origin[1] + c[1], origin[2] + c[2]];
+                        const xyv = [origin[0] + a[0]+b[0], origin[1] + a[1]+b[1], origin[2] + a[2]+b[2]];
+                        const xzv = [origin[0] + a[0]+c[0], origin[1] + a[1]+c[1], origin[2] + a[2]+c[2]];
+                        const yzv = [origin[0] + b[0]+c[0], origin[1] + b[1]+c[1], origin[2] + b[2]+c[2]];
+                        const xyz = [origin[0] + a[0]+b[0]+c[0], origin[1] + a[1]+b[1]+c[1], origin[2] + a[2]+b[2]+c[2]];
+                        return new ChemDoodle.structures.d3.UnitCell({o, x, y, z, xy: xyv, xz: xzv, yz: yzv, xyz});
                     }
 
                     function loadfile(t) {
@@ -496,30 +617,33 @@
                             r.onload=function(t) {
                                 content=t.target.result;
                                 let obj;
-                                let names = [], positions = [], box = [];
-                                let nobox = [0,0,0,0,0,0,0,0,0];
+                                let names = [], positions = [];
+                                const zerobox = [0,0,0,0,0,0,0,0,0];
                                 switch(s)
                                 {
                                     case 'pdb':
                                         // obj = ChemDoodle.readPDB(content); // the method is not work for non-standard pdb file
-                                        let xyz = "", natoms = 0;
-                                        // TODO: parser CRYST1 & CONECT
+                                        let pdbcell;
                                         content.split('\n').forEach(function (line) {
                                             if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
-                                                natoms++;
                                                 // must remove number in str
                                                 name = fix_atomname(line.substring(12, 16));
                                                 let x = parseFloat(line.substring(30, 38));
                                                 let y = parseFloat(line.substring(38, 46));
                                                 let z = parseFloat(line.substring(46, 54));
-                                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name, x, y, z);
 
                                                 names.push(name);
                                                 positions.push(x, y, z);
+                                            } else if (line.startsWith("CRYST1")) {
+                                                let data = line.split(/\s+/g);
+                                                pdbcell = [parseFloat(data[1]), parseFloat(data[2]), parseFloat(data[3]), 
+                                                          parseFloat(data[4]), parseFloat(data[5]), parseFloat(data[6])];
                                             }
                                         })
-                                        readXYZFast(names, positions, nobox, natoms+"\nMOL\n"+xyz).then(obj => {
-                                            loadMolNoPBC(obj);
+                                        let b = pdbcell==undefined? zerobox : ABCTotriclinic(pdbcell);
+                                        readXYZFast(names, positions, b).then(mol => {
+                                            cell = build_cell_from_gmxbox(mol, b);
+                                            loadMolPBC({molecule:mol, unitCell:cell});
                                             alertMolecule();
                                         })
                                         break;
@@ -774,7 +898,6 @@
 
             </td>
         </tr>
-
     </table>
     </div>
     
