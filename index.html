@@ -5,7 +5,7 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgauchk.js"></script>
-        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libsimles2mol.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libsmiles2mol.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libfindbonds.js"></script>
 
         <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/ChemDoodleWeb.js"></script>
@@ -20,7 +20,7 @@
     
     <div class="wrap">
 
-    <div style="position: fixed; left: 10px; top: 50px; width: 150px; font-size: 12px;">
+    <div style="position: fixed; left: 5px; top: 50px; width: 150px; font-size: 12px;">
         <div style="cursor: pointer; font-weight: bold;" onclick="toggleHelp()">
             Help ▶
         </div>
@@ -36,7 +36,7 @@
             双指拖动：移动分子<br>
             双指缩放：缩放分子<br>
             <br>
-            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键目前都是基于距离搜索进行判定的，大体系下pdb格式读取速度最快，因为该部分基于C++代码。
+            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键目前都是基于距离搜索进行判定的，大体系下pdb，xyz，gro格式读取速度最快，因为该部分基于C++代码。
         </div>
 
         <script>
@@ -398,19 +398,25 @@
                                 name = name[0].toUpperCase() + (name.length>1? name[1].toLowerCase() : '')
                             }
                         })
+                        // charmm ions
+                        if (name.startsWith('POT')) {
+                            name = 'K';
+                        } else if (name.startsWith('SOD')) {
+                            name = 'Na';
+                        }
                         return name;
                     }
 
                     // convert gromacs tpr binary stream to cif & xyz text
                     async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
-                        let module = await TprModule();
+                        const module = await TprModule();
                         let uint8View = new Uint8Array(arrbuffer);
                         module.FS.writeFile(filename, uint8View);
-                        let tpr = new module.TprReader(filename, false, false, false);
-                        let c = tpr.get_xvf("x"); // nm
-                        let name = tpr.get_name('atom'); // atomname
-                        let box =  tpr.get_xvf("box");
+                        const tpr = new module.TprReader(filename, false, false, false);
+                        const c = tpr.get_xvf("x"); // nm
+                        const name = tpr.get_name('atom'); // atomname
+                        const box =  tpr.get_xvf("box");
                         tpr.delete();
                         module.FS.unlink(filename);
                         let ux = box.get(0)*10.0;
@@ -453,12 +459,12 @@
                     // convert gaussian binary chk file to cif & xyz text
                     async function readCHK(arrbuffer) {
                         let filename = "___temp.chk";
-                        let module = await ChkModule();
+                        const module = await ChkModule();
                         let uint8View = new Uint8Array(arrbuffer);
                         module.FS.writeFile(filename, uint8View);
-                        let chk = new module.GauChkParserWarpper(filename);
-                        let name = chk.get_name(); // element names
-                        let c = chk.get_coords(); // coorrds, 3*natoms
+                        const chk = new module.GauChkParserWarpper(filename);
+                        const name = chk.get_name(); // element names
+                        const c = chk.get_coords(); // coorrds, 3*natoms
                         chk.delete();
                         module.FS.unlink(filename);
                         let natoms = c.size()/3;
@@ -494,23 +500,9 @@
                         return {cif:cif, xyz:xyz, ispbc:ispbc};
                     }
 
-                    function get_com(mol) {
-                        let com = [0,0,0];
-                        mol.atoms.forEach(function (atom) {
-                            com[0] += atom.x;
-                            com[1] += atom.y;
-                            com[2] += atom.z;
-                        });
-                        com[0] /= mol.atoms.length;
-                        com[1] /= mol.atoms.length;
-                        com[2] /= mol.atoms.length;
-                        return com;
-                    }
-
-                    
                     // fast find atom bonds based distance, return Array(atom1, atom2, distance)
                     async function find_bonds(names, positions, box) {
-                        let module = await FindBondsModule();
+                        const module = await FindBondsModule();
                         // use c++ vector
                         const cnames = new module.VecString();
                         const cpositions = new module.VecFloat();
@@ -536,6 +528,7 @@
                     }
 
                     // A more efficient way to read the xyz file, ignoring bondorder
+                    // box (9 float values) can be zero, represent no pbc
                     async function readXYZFast(names, positions, box) {
                         // check input
                         if (names.length != positions.length/3) {
@@ -562,7 +555,7 @@
                             const natoms = parseInt(ChemDoodle.lib.jQuery.trim(lines[0]));
 
                             for (let i = 0; i < natoms; i++) {
-                                const tokens = lines[i + 2].split(/\s+/g);
+                                const tokens = lines[i + 2].trim().split(/\s+/g);
                                 molecule.atoms[i] = new ChemDoodle.structures.Atom(
                                     isNaN(tokens[0]) ? tokens[0] : ChemDoodle.SYMBOLS[parseInt(tokens[0]) - 1],
                                     parseFloat(tokens[1]),
@@ -583,7 +576,7 @@
 
                         // 创建实例并调用 read 方法
                         const interpreter = new XYZInterpreter();
-                        return interpreter.read(ltrim(xyzstr));
+                        return interpreter.read(xyzstr);
                     }
 
                     // build cell from gmx box (1D, 9 values)
@@ -617,7 +610,7 @@
                             r.onload=function(t) {
                                 content=t.target.result;
                                 let obj;
-                                let names = [], positions = [];
+                                let names = [], positions = [], natoms = 0, lines, b;
                                 const zerobox = [0,0,0,0,0,0,0,0,0];
                                 switch(s)
                                 {
@@ -640,17 +633,25 @@
                                                           parseFloat(data[4]), parseFloat(data[5]), parseFloat(data[6])];
                                             }
                                         })
-                                        let b = pdbcell==undefined? zerobox : ABCTotriclinic(pdbcell);
+                                        b = pdbcell==undefined? zerobox : ABCTotriclinic(pdbcell);
                                         readXYZFast(names, positions, b).then(mol => {
-                                            cell = build_cell_from_gmxbox(mol, b);
+                                            const cell = build_cell_from_gmxbox(mol, b);
                                             loadMolPBC({molecule:mol, unitCell:cell});
                                             alertMolecule();
                                         })
                                         break;
                                     case 'xyz':
-                                        obj = ChemDoodle.readXYZ(ltrim(content));
-                                        loadMolNoPBC(obj);
-                                        alertMolecule();
+                                        lines = content.split('\n');
+                                        natoms = parseInt(lines[0]);
+                                        for (let i = 0; i < natoms; i++) {
+                                            line = lines[i+2].trim().split(/\s+/g);
+                                            names.push(fix_atomname(line[0]));
+                                            positions.push(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3]));
+                                        }
+                                        readXYZFast(names, positions, zerobox).then(mol => { 
+                                            loadMolNoPBC(mol);
+                                            alertMolecule();
+                                        })
                                         break;
                                     case 'mol':
                                         obj = ChemDoodle.readMOL(content, 1);
@@ -714,50 +715,33 @@
                                         content.split('\n').forEach(function (line, index) {
                                             if (index>=2 && /[a-zA-Z]/.test(line)) {
                                                 names.push(fix_atomname(line.substring(10, 15)));
-
                                                 let x = parseFloat(line.substring(20, 28).trim()) * 10.0;
                                                 let y = parseFloat(line.substring(28, 36).trim()) * 10.0;
                                                 let z = parseFloat(line.substring(36, 44).trim()) * 10.0;
-                                                positions.push([x, y, z]);
+                                                positions.push(x, y, z);
                                                 n++;
                                             }
                                         });
                                         // get gro box: v1(x) v2(y) v3(z) v1(y)=0 v1(z)=0 v2(x) v2(z)=0 v3(x) v3(y)
                                         let box = content.split('\n')[n+2].trim().split(/\s+/).map(f=>parseFloat(f)*10.0);
                                         let hasbox = (box[0]>0 && box[1]>0 && box[2]>0);
-                                        // load gro to scene
+                                        // 1D box
+                                        b = zerobox;
                                         if (hasbox) {
-                                            let crystal;
-                                            let a_vec, b_vec, c_vec;
                                             if (box.length==3) {
-                                                crystal = triclinicToABC(box[0], box[1], box[2], 0, 0, 0);
-                                                a_vec = [box[0], 0, 0];
-                                                b_vec = [0, box[1], 0];
-                                                c_vec = [0, 0, box[2]];
+                                                b = [box[0], 0, 0, 0, box[1], 0, 0, 0, box[2]];
                                             } else if (box.length==9) {
-                                                crystal = triclinicToABC(box[0], box[1], box[2], box[5], box[7], box[8]);
-                                                a_vec = [box[0], 0, 0];
-                                                b_vec = [box[5], box[1], 0];
-                                                c_vec = [box[7], box[8], box[2]];
+                                                b = [box[0], 0, 0, box[5], box[1], 0, box[7], box[8], box[2]];
                                             } else {
                                                 alert("Invalid gro box, should be 3 or 9 float numbers");
                                                 return;
                                             }
-                                            let text = cif_header(positions.length, crystal);
-                                            positions.forEach(function (c, index) {
-                                                let [fx, fy, fz] = fracCoords(c[0], c[1], c[2], a_vec, b_vec, c_vec);
-                                                text += "MOL " + names[index] + ' ' + fx + ' ' + fy + ' ' + fz + '\n';
-                                            });
-                                            obj = ChemDoodle.readCIF(text, 1, 1, 1);
-                                            loadMolPBC(obj);
-                                        } else {
-                                            let text = positions.length + "\nMOL\n";
-                                            positions.forEach(function (c, index) {
-                                                text += names[index] + ' ' + c[0] + ' ' + c[1] + ' ' + c[2] + '\n';
-                                            });
-                                            loadMolNoPBC(ChemDoodle.readXYZ(ltrim(text)));
                                         }
-                                        alertMolecule();
+                                        readXYZFast(names, positions, b).then(mol=>{ 
+                                            const cell = build_cell_from_gmxbox(mol, b);
+                                            loadMolPBC({molecule:mol, unitCell:cell});
+                                            alertMolecule();
+                                        })
                                         break;
                                     default:
                                         alert('Unknown supported file format: ' + s);
