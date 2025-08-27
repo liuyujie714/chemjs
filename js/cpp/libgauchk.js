@@ -1,3 +1,8 @@
+// The js library adopted from GauChkParser (https://pypi.org/project/GauChkParser/)
+
+// Created by Yujie Liu
+// 2025.08.19
+
 var ChkModule = (() => {
   var _scriptName = typeof document != 'undefined' ? document.currentScript?.src : undefined;
   if (typeof __filename != 'undefined') _scriptName = _scriptName || __filename;

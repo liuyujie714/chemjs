@@ -1,3 +1,10 @@
+// A library for reading gromacs tpr, such as atom coords, name, box, 
+// also support get atom velocity, resname, ...
+// The js library adopted from TprParser (https://pypi.org/project/TprParser/)
+
+// Created by Yujie Liu
+// 2025.02.14
+
 var TprModule = (() => {
   var _scriptName = typeof document != 'undefined' ? document.currentScript?.src : undefined;
   if (typeof __filename != 'undefined') _scriptName = _scriptName || __filename;
