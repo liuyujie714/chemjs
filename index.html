@@ -3,7 +3,7 @@
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/pmd.min.css">
-        <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgmxtpr.js"></script>
+        <script src="./js/cpp/libgmxtpr.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libgauchk.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libsmiles2mol.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/js/cpp/libfindbonds.js"></script>
@@ -36,7 +36,7 @@
             双指拖动：移动分子<br>
             双指缩放：缩放分子<br>
             <br>
-            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键目前都是基于距离搜索进行判定的，大体系下pdb，xyz，gro格式读取速度最快，因为该部分基于C++代码。
+            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键除了tpr是来自力场本身定义，其他格式都是基于距离搜索进行判定的，大体系下pdb，xyz，gro格式读取速度最快，因为该部分基于C++代码。
         </div>
 
         <script>
@@ -154,6 +154,7 @@
                     Mol.specs.atoms_displayLabels_3D=false; // 原子标签显示
                     Mol.specs.bonds_splitColor = true;
                     Mol.specs.text_font_stroke_3D = true;
+                    Mol.specs.shapes_color = 'blue'; // such as box color
                     //Mol.specs.bonds_cylinderDiameter_3D = 0.3; //键粗细
                     // 动画设置
                     Mol.handle = null;
@@ -407,7 +408,7 @@
                         return name;
                     }
 
-                    // convert gromacs tpr binary stream to cif & xyz text
+                    // read gromacs tpr and return names, positions, box and bonds (unique)
                     async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
                         const module = await TprModule();
@@ -417,6 +418,8 @@
                         const c = tpr.get_xvf("x"); // nm
                         const name = tpr.get_name('atom'); // atomname
                         const box =  tpr.get_xvf("box");
+                        // 1-based index
+                        const bonds = tpr.get_bonded('bonds');
                         tpr.delete();
                         module.FS.unlink(filename);
                         let ux = box.get(0)*10.0;
@@ -426,34 +429,29 @@
                         let xz = box.get(6)*10.0;
                         let yz = box.get(7)*10.0;
                         let natoms = c.size()/3;
-                        let cif = "";
-                        let xyz = "";
+                        let names = [], positions = [];
                         let ispbc = (ux>0 && uy>0 && uz>0);
-                        if (ispbc) {
-                            let crystal = triclinicToABC(ux, uy, uz, xy, xz, yz);
-                            cif = cif_header(natoms, crystal);
-                            let a_vec = [ux, 0, 0];
-                            let b_vec = [xy, uy, 0];
-                            let c_vec = [xz, yz, uz];
-                            for (let i = 0; i < natoms; i++) {
+                        const cbox = ispbc? [ux, 0, 0, xy, uy, 0, xz, yz, uz] : [0,0,0,0,0,0,0,0,0];
+                        for (let i = 0; i < natoms; i++) {
                                 let x = c.get(3*i) * 10.0;
                                 let y = c.get(3*i+1) * 10.0;
                                 let z = c.get(3*i+2) * 10.0;
-                                let [fx, fy, fz] = fracCoords(x, y, z, a_vec, b_vec, c_vec);
-                                // Here only use the first char to represent element!!!
-                                cif += sprintf("MOL %s %8.3f %8.3f %8.3f\n", name.get(i)[0], fx, fy, fz);
-                            }
-                        } 
-                        else {
-                            xyz += natoms + "\nMOL\n";
-                            for (let i = 0; i < natoms; i++) {
-                                let x = c.get(3*i) * 10.0;
-                                let y = c.get(3*i+1) * 10.0;
-                                let z = c.get(3*i+2) * 10.0;
-                                xyz += sprintf("%s %8.3f %8.3f %8.3f\n", name.get(i)[0], x, y, z);
+                                names.push(fix_atomname(name.get(i)));
+                                positions.push(x, y, z);
+                        }
+                        // get bonds
+                        let jsbonds = new Map();
+                        for (let i = 0; i < bonds.size(); i++) {
+                            // to 0-based index
+                            const a = bonds.get(i).a-1;
+                            const b = bonds.get(i).b-1;
+                            const key = a < b ? a+"-"+b : b+"-"+a;
+                            // remove duplicates
+                            if (!jsbonds.has(key)) {
+                                jsbonds.set(key, [a, b]);
                             }
                         }
-                        return {cif:cif, xyz:xyz, ispbc:ispbc};
+                        return {names, positions, box:cbox, bonds:Array.from(jsbonds.values())};
                     }
 
                     // convert gaussian binary chk file to cif & xyz text
@@ -529,7 +527,7 @@
 
                     // A more efficient way to read the xyz file, ignoring bondorder
                     // box (9 float values) can be zero, represent no pbc
-                    async function readXYZFast(names, positions, box) {
+                    async function readXYZFast(names, positions, box, autobonds = true) {
                         // check input
                         if (names.length != positions.length/3) {
                             throw new Error("The number of atom names does not equal to the number of atom positions");
@@ -565,11 +563,13 @@
                             }
 
                             //(new ChemDoodle.informatics.BondDeducer()).deduceCovalentBonds(molecule, 1);
-                            let bondorder = 1;
-                            const bonds = await find_bonds(names, positions, box);
-                            bonds.forEach(b=> {
-                                molecule.bonds.push(new ChemDoodle.structures.Bond(molecule.atoms[b[0]], molecule.atoms[b[1]], bondorder));
-                            })
+                            if (autobonds) {
+                                let bondorder = 1;
+                                const bonds = await find_bonds(names, positions, box);
+                                bonds.forEach(b=> {
+                                    molecule.bonds.push(new ChemDoodle.structures.Bond(molecule.atoms[b[0]], molecule.atoms[b[1]], bondorder));
+                                })
+                            }
 
                             return molecule;
                         };
@@ -634,7 +634,7 @@
                                             }
                                         })
                                         b = pdbcell==undefined? zerobox : ABCTotriclinic(pdbcell);
-                                        readXYZFast(names, positions, b).then(mol => {
+                                        readXYZFast(names, positions, b, true).then(mol => {
                                             const cell = build_cell_from_gmxbox(mol, b);
                                             loadMolPBC({molecule:mol, unitCell:cell});
                                             alertMolecule();
@@ -648,7 +648,7 @@
                                             names.push(fix_atomname(line[0]));
                                             positions.push(parseFloat(line[1]), parseFloat(line[2]), parseFloat(line[3]));
                                         }
-                                        readXYZFast(names, positions, zerobox).then(mol => { 
+                                        readXYZFast(names, positions, zerobox, true).then(mol => { 
                                             loadMolNoPBC(mol);
                                             alertMolecule();
                                         })
@@ -685,15 +685,17 @@
                                         alertMolecule();
                                         break;
                                     case 'tpr':
-                                        readTpr(content).then(tpr => { 
-                                            if (tpr.ispbc) {
-                                                obj = ChemDoodle.readCIF(tpr.cif, 1, 1, 1);
-                                                loadMolPBC(obj);
-                                            }
-                                            else {
-                                                obj = ChemDoodle.readXYZ(ltrim(tpr.xyz));
-                                                loadMolNoPBC(obj);
-                                            }
+                                        readTpr(content).then(tpr => {
+                                            return readXYZFast(tpr.names, tpr.positions, tpr.box, false)
+                                                .then(mol => ({ mol, tpr })); 
+                                        }).then(({ mol, tpr }) => {
+                                            const cell = build_cell_from_gmxbox(mol, tpr.box);
+                                            // load tpr bonds
+                                            const bondorder = 1;
+                                            tpr.bonds.forEach(b=> {
+                                                mol.bonds.push(new ChemDoodle.structures.Bond(mol.atoms[b[0]], mol.atoms[b[1]], bondorder));
+                                            })
+                                            loadMolPBC({ molecule: mol, unitCell: cell });
                                             alertMolecule();
                                         });
                                         break;
@@ -737,7 +739,7 @@
                                                 return;
                                             }
                                         }
-                                        readXYZFast(names, positions, b).then(mol=>{ 
+                                        readXYZFast(names, positions, b, true).then(mol=>{ 
                                             const cell = build_cell_from_gmxbox(mol, b);
                                             loadMolPBC({molecule:mol, unitCell:cell});
                                             alertMolecule();
