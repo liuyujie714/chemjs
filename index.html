@@ -65,12 +65,12 @@
                 <script>
                     var $ = function(id) { return document.getElementById(id); }
                     
-                    $("inputsmiles").addEventListener("keydown", function(e) {
+                    $("inputsmiles").addEventListener("keydown", async function(e) {
                         if (e.keyCode == 13) {
                             e.preventDefault();
                             const value = this.value.trim();
                             if (value) {
-                                molFromSmiles(value);
+                                await molFromSmiles(value);
                             }
                         }
                     })
