@@ -172,8 +172,8 @@
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 0, 1 ]);
                         ChemDoodle.lib.mat4.multiply(this.rotationMatrix, matrix)
                     };
-                    ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/ch4.xyz', function(fileContent) {
-                        let mol = ChemDoodle.readXYZ(ltrim(fileContent));
+                    ChemDoodle.io.file.content('https://cdn.jsdelivr.net/gh/liuyujie714/chemjs/mol/C640.pdb', function(fileContent) {
+                        let mol = ChemDoodle.readPDB(fileContent);
                         loadMolNoPBC(mol);
                     });
                     Mol.startAnimation(); // 开始动画
