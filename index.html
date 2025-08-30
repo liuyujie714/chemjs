@@ -230,7 +230,7 @@
                             let xyz = ChemDoodle.readXYZ(ltrim($("textarea").value));
                             Mol.loadMolecule(xyz);
                         }
-                        catch {
+                        catch (error) {
                             alert("坐标输入格式错误, 必须是XYZ");
                             return;
                         }
@@ -811,7 +811,7 @@
                             // loadMolNoPBC(ChemDoodle.readPDB(text));
                             $('inputsmiles').value = s;
                         } catch (error) {
-                            alert('无法通过RDkit对Smiles: "' + s + '" 生成3D结构');
+                            alert('无法通过RDKit对Smiles: "' + s + '" 生成3D结构');
                         }
                     }
 
