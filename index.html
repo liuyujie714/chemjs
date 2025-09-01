@@ -166,7 +166,7 @@
                     Mol.nextFrame = function(delta){
                         let matrix = [];
                         ChemDoodle.lib.mat4.identity(matrix);
-                        let change = delta*Math.PI/15000;
+                        let change = delta*Math.PI/50000;
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 1, 0, 0 ]);
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 1, 0 ]);
                         ChemDoodle.lib.mat4.rotate(matrix, change, [ 0, 0, 1 ]);
