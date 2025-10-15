@@ -36,7 +36,11 @@
             双指拖动：移动分子<br>
             双指缩放：缩放分子<br>
             <br>
-            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。<br>原子成键除了tpr是来自力场本身定义，其他格式都是基于距离搜索进行判定的，大体系下pdb，xyz，gro格式读取速度最快，因为该部分基于C++代码。
+            注意当从外部读取文件可视化时，整体原子坐标和盒子边界会自动平移，因此和源文件坐标不一致，但这<b>不影响分子可视化效果</b>。
+            <br>
+            原子成键除了tpr是来自力场本身定义，其他格式都是基于距离搜索进行判定的，大体系下pdb，xyz，gro格式读取速度最快，因为该部分基于C++代码。
+            <br>
+            chg和tpr文件支持原子电荷的读取
         </div>
 
         <script>
@@ -458,7 +462,7 @@
                         return name;
                     }
 
-                    // read gromacs tpr and return names, positions, box and bonds (unique)
+                    // read gromacs tpr and return names, positions, charges, box and bonds (unique)
                     async function readTpr(arrbuffer) {
                         let filename = "___temp.tpr";
                         const module = await TprModule();
@@ -466,6 +470,7 @@
                         module.FS.writeFile(filename, uint8View);
                         const tpr = new module.TprReader(filename, false, false, false);
                         const c = tpr.get_xvf("x"); // nm
+                        const q = tpr.get_xvf("q"); // charge
                         const name = tpr.get_name('atom'); // atomname
                         const box =  tpr.get_xvf("box");
                         // 1-based index
@@ -479,7 +484,7 @@
                         let xz = box.get(6)*10.0;
                         let yz = box.get(7)*10.0;
                         let natoms = c.size()/3;
-                        let names = [], positions = [];
+                        let names = [], positions = [], charges = [];
                         let ispbc = (ux>0 && uy>0 && uz>0);
                         const cbox = ispbc? [ux, 0, 0, xy, uy, 0, xz, yz, uz] : [0,0,0,0,0,0,0,0,0];
                         for (let i = 0; i < natoms; i++) {
@@ -488,6 +493,8 @@
                                 let z = c.get(3*i+2) * 10.0;
                                 names.push(fix_atomname(name.get(i)));
                                 positions.push(x, y, z);
+                                // atom charge
+                                charges.push(q.get(i));
                         }
                         // get bonds
                         let jsbonds = new Map();
@@ -501,7 +508,7 @@
                                 jsbonds.set(key, [a, b]);
                             }
                         }
-                        return {names, positions, box:cbox, bonds:Array.from(jsbonds.values())};
+                        return {names, positions, box:cbox, bonds:Array.from(jsbonds.values()), charges};
                     }
 
                     // convert gaussian binary chk file to cif & xyz text
@@ -754,6 +761,10 @@
                                             tpr.bonds.forEach(b=> {
                                                 mol.bonds.push(new ChemDoodle.structures.Bond(mol.atoms[b[0]], mol.atoms[b[1]], bondorder));
                                             })
+                                            // load charges
+                                            for (let i = 0; i < mol.atoms.length; i++) {
+                                                mol.atoms[i].charge = tpr.charges[i];
+                                            }
                                             loadMolPBC({ molecule: mol, unitCell: cell });
                                             alertMolecule();
                                         });
