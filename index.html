@@ -110,7 +110,7 @@
                         g_lab2ids.clear()
                         for (let i = 0; i < mol.atoms.length; i++) {
                             let newlab = mol.atoms[i].label+String(i+1);
-                            mol.atoms[i].altLabel = newlab;
+                            mol.atoms[i].altLabel = newlab; // display atom text
                             g_lab2ids.set(newlab, i);
                         }
                     }
@@ -236,9 +236,59 @@
                         }
                     }
 
-                    function showlabel() {
-                        Mol.specs.atoms_displayLabels_3D=$("label").checked;
+                    function setLabel(value) {
+                        let status = false;
+                        let mol = Mol.molecules[0];
+                        let n = mol.atoms.length;
+                        let ndigit = 4;
+                        switch(value)
+                        {
+                            case 'None':
+                                status = false;
+                                break;
+                            case 'E':
+                                for (let i = 0; i < n; i++) {
+                                    mol.atoms[i].altLabel = mol.atoms[i].label;
+                                }
+                                status = true;
+                                break;
+                            case 'N':
+                                for (let i = 0; i < n; i++) {
+                                    mol.atoms[i].altLabel = String(i+1);
+                                }
+                                status = true;
+                                break;
+                            case 'E_N':
+                                for (let i = 0; i < n; i++) {
+                                    mol.atoms[i].altLabel = mol.atoms[i].label+String(i+1);
+                                }
+                                status = true;
+                                break;
+                            case 'Q':
+                                for (let i = 0; i < n; i++) {
+                                    let chg = mol.atoms[i].charge;
+                                    mol.atoms[i].altLabel = typeof chg == 'string' ? parseFloat(chg).toFixed(ndigit) : chg.toFixed(ndigit);
+                                }
+                                status = true;
+                                break;
+                            case 'E_Q':
+                                for (let i = 0; i < n; i++) {
+                                    let chg = mol.atoms[i].charge;
+                                    let q = typeof chg == 'string' ? parseFloat(chg).toFixed(ndigit) : chg.toFixed(ndigit);
+                                    mol.atoms[i].altLabel = mol.atoms[i].label+'('+q+')';
+                                }
+                                status = true;
+                                break;
+                        }
+                        // set up atom label style
+                        Mol.specs.atoms_displayLabels_3D=status;
+                        Mol.setupScene()
                         Mol.repaint();
+
+                        // restore altLabel because of write mol2 file is need
+                        for (let i = 0; i < n; i++) {
+                            mol.atoms[i].altLabel = mol.atoms[i].label+String(i+1);
+                        }
                     }
 
                     // find 3-9 members rings from mol 
@@ -677,10 +727,19 @@
                                         break;
                                     case 'chg':
                                         let nat = 0;
+                                        let charges = [];
                                         content.split('\n').forEach(function (line) {
-                                            if(line.match(/^[a-zA-Z)]/)) {nat += 1;}
+                                            if(line.match(/^[a-zA-Z)]/)) {
+                                                nat += 1;
+                                                const s = line.trim().split(/\s+/);
+                                                charges.push(parseFloat(s[s.length-1]));
+                                            }
                                         });
                                         obj = ChemDoodle.readXYZ(ltrim(nat+"\nMOL\n"+content));
+                                        // load atom charges
+                                        for (let i = 0; i < nat; i++) {
+                                            obj.atoms[i].charge = charges[i];
+                                        }
                                         loadMolNoPBC(obj);
                                         alertMolecule();
                                         break;
@@ -873,13 +932,25 @@
                     window.File && window.FileReader && window.FileList && window.Blob ? $("loadfile").addEventListener('change', loadfile, !1): alert("The File APIs are not fully supported by your browser.")
                 </script>
 
-                <div> 
-                    <input type="checkbox" id="label" onChange="showlabel()" /> Label
-                    <input type="radio" name="style" id='Line' checked="checked" onChange="setview(id)" /> Line
-                    <input type="radio" name="style" id='CPK'  onChange="setview(id)" /> CPK
-                    <input type="radio" name="style" id='vdW' onChange="setview(id)" /> vdW
-                    <input type="radio" name="style" id='Stick' onChange="setview(id)" /> Stick
-                    <input type="radio" name="style" id='Wireframe' onChange="setview(id)" /> Wire
+                <div>
+                    <label for="label">Label</label>
+                    <select id="label" onChange="setLabel(this.value)">
+                      <option value="None" selected>None</option>
+                      <option value="E">Element</option>
+                      <option value="N">Serial</option>
+                      <option value="Q">Charge</option>
+                      <option value="E_N">Element+Serial</option>
+                      <option value="E_Q">Element+Charge</option>
+                    </select>
+                    
+                    <label for="styleform">Style</label>
+                    <select id="styleform" onChange="setview(this.value)">
+                      <option value="Line" selected>Line</option>
+                      <option value="CPK">CPK</option>
+                      <option value="vdW">vdW</option>
+                      <option value="Stick">Stick</option>
+                      <option value="Wireframe">Wireframe</option>
+                    </select>
                 </div>
 
             </td>
