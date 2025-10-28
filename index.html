@@ -24,6 +24,11 @@
         <div style="cursor: pointer; font-weight: bold;" onclick="toggleHelp()">
             Help ▶
         </div>
+
+        <!-- 添加控制面板切换按钮 -->
+        <div style="cursor: pointer; font-weight: bold; margin-top: 10px;" onclick="toggleControlPanel()">
+            Bend ▶
+        </div>
         <div id="help" style="margin-top: 0.5rem; display: none;">
             电脑端:<br>
             Ctrl+Z: 撤销绘制操作<br>
@@ -56,6 +61,23 @@
                     arrow.innerHTML = 'Help ▶';
                 }
             }
+
+            function toggleControlPanel() {
+                const panelCell = document.querySelector('tr:first-child td:nth-child(3)');
+                const panelRow = document.querySelector('tr:nth-child(2) td:nth-child(3)');
+                const button = document.querySelector('div[onclick="toggleControlPanel()"]');
+                if (panelCell.style.display === 'none') {
+                    // 显示控制面板
+                    panelCell.style.display = '';
+                    panelRow.style.display = '';
+                    button.innerHTML = 'Bend ▼';
+                } else {
+                    // 隐藏控制面板
+                    panelCell.style.display = 'none';
+                    panelRow.style.display = 'none';
+                    button.innerHTML = 'Bend ▶';
+                }
+            }
         </script>
     </div>
     
@@ -86,6 +108,13 @@
                     <input type="button" id="savefile" onclick="savefile()" value="导出3D分子" style="font-size:1em;font-weight:bold;color:red;width:50%; height:30px" />
                 </div>
             </td>
+
+            <td style="text-align: center; vertical-align: middle;display: none;">
+                <span style="font-size:1em; font-weight:bold; color:red; cursor:pointer;">
+                    分子弯曲控制(Test)
+                </span>
+            </td>
+                    
         </tr>
 
         <tr>
@@ -137,6 +166,7 @@
 
                     // add atom serial and loadMolecule (without pbc) and set resolution
                     function loadMolNoPBC(mol) { 
+                        g_basePositions = null;
                         set_resolution(mol.atoms.length);
                         addAtomSerial(mol)
                         Mol.loadMolecule(mol);
@@ -144,6 +174,7 @@
 
                     // add atom serial and loadContent (pbc) and set resolution
                     function loadMolPBC(obj) { 
+                        g_basePositions = null;
                         set_resolution(obj.molecule.atoms.length);
                         addAtomSerial(obj.molecule);
                         Mol.loadContent([obj.molecule], [obj.unitCell]);
@@ -151,6 +182,8 @@
 
                     // 分子显示
                     var Mol = new ChemDoodle.EditorCanvas3D('Mol', 400, 450, {useServices:false, includeToolbar:true});
+                    // 记录分子初始位置
+                    var g_basePositions = null;
                     Mol.specs.backgroundColor='#000000';
                     Mol.specs.set3DRepresentation('Line');
                     Mol.specs.projectionPerspective_3D = true; // 透视投影
@@ -736,7 +769,7 @@
                                         let nat = 0;
                                         let charges = [];
                                         content.split('\n').forEach(function (line) {
-                                            if(line.match(/^[a-zA-Z)]/)) {
+                                            if(line.trim().match(/^[a-zA-Z)]/)) {
                                                 nat += 1;
                                                 const s = line.trim().split(/\s+/);
                                                 charges.push(parseFloat(s[s.length-1]));
@@ -963,11 +996,177 @@
                       <option value="Wireframe">Wireframe</option>
                     </select>
                 </div>
+            </td>
+
+            <td style="display: none;">
+                <div class="control-panel">
+
+                    <!-- 弯曲程度 -->
+                    <div class="control-row">
+                        <label for="slider">弯曲程度:</label>
+                        <input type="range" id="slider" min="-1" max="1" step="0.1" value="0">
+                        <span id="slider_value">0.0</span>
+                    </div>
+
+                    <!-- 弯曲幅度系数 -->
+                    <div class="control-row">
+                        <label for="factor">弯曲幅度系数:</label>
+                        <input type="number" id="factor" value="0.1" step="0.01" min="0">
+                    </div>
+
+                    <!-- 平面选择 -->
+                    <div class="control-row">
+                        <label>弯曲平面:</label>
+                        <label><input type="radio" name="plane" value="XY" checked> XY</label>
+                        <label><input type="radio" name="plane" value="XZ"> XZ</label>
+                        <label><input type="radio" name="plane" value="YZ"> YZ</label>
+                    </div>
+
+                    <!-- 重置按钮 -->
+                    <div class="control-row">
+                        <button id="resetBtn">重置</button>
+                    </div>
+
+                </div>
+
+                <style>
+                    .control-panel {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        font-family: Arial, sans-serif;
+                        font-size: 14px;
+                        max-width: 250px;
+                    }
+
+                    .control-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .control-row label {
+                        min-width: 50px;
+                    }
+
+                    .control-row input[type="number"] {
+                        width: 60px;
+                        padding: 2px 4px;
+                        box-sizing: border-box;
+                    }
+
+                    #slider {
+                        flex: 1;
+                    }
+
+                    #slider_value {
+                        width: 45px;
+                        text-align: center;
+                        display: inline-block;
+                        font-family: monospace;
+                    }
+
+                    #resetBtn {
+                        padding: 4px 10px;
+                    }
+                </style>
+
+                <script>
+                    const slider = $("slider");
+                    const output = $("slider_value");
+                    const factorInput = $("factor");
+                    const planeRadios = document.querySelectorAll('input[name="plane"]');
+                    const resetBtn = $("resetBtn");
+
+                    let center = null;
+
+                    // 延迟初始化
+                    function initMol() {
+                        const mol = Mol.getMolecule();
+                        g_basePositions = mol.atoms.map(atom => ({ x: atom.x, y: atom.y, z: atom.z }));
+                        center = {
+                            x: g_basePositions.reduce((s, a) => s + a.x, 0) / g_basePositions.length,
+                            y: g_basePositions.reduce((s, a) => s + a.y, 0) / g_basePositions.length,
+                            z: g_basePositions.reduce((s, a) => s + a.z, 0) / g_basePositions.length
+                        };
+                    }
+
+                    function bendMolecule() {
+                        Mol.stopAnimation();
+                        const mol = Mol.getMolecule();
+
+                        if (!g_basePositions) initMol();
+
+                        const value = parseFloat(slider.value);
+                        output.textContent = value.toFixed(2);
+
+                        const factor = parseFloat(factorInput.value) || 0.1;
+                        const k = value * factor;
+                        const direction = value >= 0 ? 1 : -1;
+
+                        let plane = "XY";
+                        planeRadios.forEach(r => { if (r.checked) plane = r.value; });
+
+                        mol.atoms.forEach((atom, i) => {
+                            const base = g_basePositions[i];
+                            if (k === 0) {
+                                atom.x = base.x; atom.y = base.y; atom.z = base.z;
+                                return;
+                            }
+                            
+                            const R = 1.0 / (Math.abs(k) + 1e-6);
+                            let rel;
+
+                            switch (plane) {
+                                case "XY":
+                                    rel = base.y - center.y; // 用Y做弯曲参数
+                                    atom.x = base.x;
+                                    atom.y = base.y;
+                                    atom.z = base.z + direction * R * (1 - Math.cos(rel * k));
+                                    break;
+                                case "XZ":
+                                    rel = base.z - center.z; // 用Z做弯曲参数
+                                    atom.x = base.x;
+                                    atom.y = base.y + direction * R * (1 - Math.cos(rel * k));
+                                    atom.z = base.z;
+                                    break;
+                                case "YZ":
+                                    rel = base.z - center.z; // 用Z做弯曲参数
+                                    atom.x = base.x + direction * R * (1 - Math.cos(rel * k));
+                                    atom.y = base.y;
+                                    atom.z = base.z;
+                                    break;
+                            }
+                        });
+
+                        Mol.repaint();
+                    }
+
+                    // 重置函数
+                    function resetMolecule() {
+                        if (!g_basePositions) return;
+                        const mol = Mol.getMolecule();
+                        mol.atoms.forEach((atom, i) => {
+                            const base = g_basePositions[i];
+                            atom.x = base.x; atom.y = base.y; atom.z = base.z;
+                        });
+                        Mol.repaint();
+
+                        slider.value = 0;
+                        output.textContent = "0.0";
+                        factorInput.value = "0.1";
+                        planeRadios[0].checked = true; // 默认XY
+                    }
+
+                    // 事件绑定
+                    slider.oninput = bendMolecule;
+                    factorInput.oninput = bendMolecule;
+                    planeRadios.forEach(r => r.onchange = bendMolecule);
+                    resetBtn.onclick = resetMolecule;
+                </script>
 
             </td>
         </tr>
     </table>
     </div>
-    
 </html>
-
