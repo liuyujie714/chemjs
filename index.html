@@ -483,7 +483,7 @@
                         // fix some special metal atom names
                         ['FE', 'ZN', 'CU', "CO", 'MG', 'AU', 'AG', 'AL', "SI", 'CL', "LI", "PT"].forEach(e => { 
                             if (name.startsWith(e)) {
-                                name = name[0].toUpperCase() + (name.length>1? name[1].toLowerCase() : '')
+                                name = name[0].toUpperCase() + (name.length>1? name[1].toLowerCase() : '');
                             }
                         })
                         // charmm ions
@@ -728,7 +728,7 @@
                                             const cell = build_cell_from_gmxbox(mol, b);
                                             loadMolPBC({molecule:mol, unitCell:cell});
                                             alertMolecule();
-                                        })
+                                        });
                                         break;
                                     case 'xyz':
                                         lines = content.split('\n');
@@ -741,7 +741,7 @@
                                         readXYZFast(names, positions, zerobox, true).then(mol => { 
                                             loadMolNoPBC(mol);
                                             alertMolecule();
-                                        })
+                                        });
                                         break;
                                     case 'mol':
                                         obj = ChemDoodle.readMOL(content, 1);
@@ -793,7 +793,7 @@
                                             const bondorder = 1;
                                             tpr.bonds.forEach(b=> {
                                                 mol.bonds.push(new ChemDoodle.structures.Bond(mol.atoms[b[0]], mol.atoms[b[1]], bondorder));
-                                            })
+                                            });
                                             // load charges
                                             for (let i = 0; i < mol.atoms.length; i++) {
                                                 mol.atoms[i].charge = tpr.charges[i];
@@ -1001,17 +1001,23 @@
             <td style="display: none;">
                 <div class="control-panel">
 
-                    <!-- 弯曲程度 -->
+                    <!-- 弯曲方向 -->
                     <div class="control-row">
-                        <label for="slider">弯曲程度:</label>
+                        <label for="slider">弯曲方向:</label>
                         <input type="range" id="slider" min="-1" max="1" step="0.1" value="0">
                         <span id="slider_value">0.0</span>
                     </div>
 
-                    <!-- 弯曲幅度系数 -->
+                    <!-- 弯曲频率系数 -->
                     <div class="control-row">
-                        <label for="factor">弯曲幅度系数:</label>
+                        <label for="factor">频率系数:</label>
                         <input type="number" id="factor" value="0.1" step="0.01" min="0">
+                    </div>
+
+                    <!-- 弯曲振幅系数 -->
+                    <div class="control-row">
+                        <label for="amplitude">振幅系数:</label>
+                        <input type="number" id="amplitude" value="1" step="0.1">
                     </div>
 
                     <!-- 平面选择 -->
@@ -1075,6 +1081,7 @@
                     const slider = $("slider");
                     const output = $("slider_value");
                     const factorInput = $("factor");
+                    const amplitudeInput = $("amplitude");
                     const planeRadios = document.querySelectorAll('input[name="plane"]');
                     const resetBtn = $("resetBtn");
 
@@ -1101,6 +1108,7 @@
                         output.textContent = value.toFixed(2);
 
                         const factor = parseFloat(factorInput.value) || 0.1;
+                        const amplitude = parseFloat(amplitudeInput.value) || 1;
                         const k = value * factor;
                         const direction = value >= 0 ? 1 : -1;
 
@@ -1122,17 +1130,17 @@
                                     rel = base.y - center.y; // 用Y做弯曲参数
                                     atom.x = base.x;
                                     atom.y = base.y;
-                                    atom.z = base.z + direction * R * (1 - Math.cos(rel * k));
+                                    atom.z = base.z + direction * R * (1 - amplitude*Math.cos(rel * k));
                                     break;
                                 case "XZ":
                                     rel = base.z - center.z; // 用Z做弯曲参数
                                     atom.x = base.x;
-                                    atom.y = base.y + direction * R * (1 - Math.cos(rel * k));
+                                    atom.y = base.y + direction * R * (1 - amplitude*Math.cos(rel * k));
                                     atom.z = base.z;
                                     break;
                                 case "YZ":
                                     rel = base.z - center.z; // 用Z做弯曲参数
-                                    atom.x = base.x + direction * R * (1 - Math.cos(rel * k));
+                                    atom.x = base.x + direction * R * (1 - amplitude*Math.cos(rel * k));
                                     atom.y = base.y;
                                     atom.z = base.z;
                                     break;
@@ -1155,12 +1163,14 @@
                         slider.value = 0;
                         output.textContent = "0.0";
                         factorInput.value = "0.1";
+                        amplitudeInput.value = "1";
                         planeRadios[0].checked = true; // 默认XY
                     }
 
                     // 事件绑定
                     slider.oninput = bendMolecule;
                     factorInput.oninput = bendMolecule;
+                    amplitudeInput.oninput = bendMolecule;
                     planeRadios.forEach(r => r.onchange = bendMolecule);
                     resetBtn.onclick = resetMolecule;
                 </script>
